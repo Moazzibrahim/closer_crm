@@ -1,4 +1,5 @@
 import 'dart:convert'; // 👈 جديد
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
 import 'package:flutter_application_1/core/constants/device_helper.dart';
@@ -80,6 +81,21 @@ class AuthProvider extends ChangeNotifier {
     return r?.toString();
   }
 
+  Future<String?> _getFcmToken() async {
+    final m = FirebaseMessaging.instance;
+    // أحياناً أول مرة بيرجع null (خصوصاً iOS لحد ما APNs يجهز) فبنحاول كام مرة
+    for (var i = 0; i < 3; i++) {
+      try {
+        final t = await m.getToken();
+        if (t != null && t.isNotEmpty) return t;
+      } catch (e) {
+        debugPrint('getToken failed: $e');
+      }
+      await Future.delayed(const Duration(seconds: 1));
+    }
+    return null;
+  }
+
   Future<bool> login({required String email, required String password}) async {
     isLoading = true;
     error = null;
@@ -87,11 +103,14 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final deviceId = await DeviceHelper.getDeviceId();
+      final fcmToken = await _getFcmToken(); // 👈 جديد
+      debugPrint('Login with fcmToken: ${fcmToken != null}'); // للتأكد
       data = await _auth.login(
         email: email,
         password: password,
         deviceId: deviceId,
         platform: DeviceHelper.platform,
+        fcmToken: fcmToken, // 👈 جديد
       );
 
       user = _findUser(data!); // 👈

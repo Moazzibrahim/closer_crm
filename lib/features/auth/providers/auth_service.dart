@@ -1,5 +1,7 @@
 // auth_service.dart
 // Login + إدارة المستخدمين (Admin) + تغيير الباسورد + الجلسات.
+// ignore_for_file: use_null_aware_elements
+
 import 'package:dio/dio.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
 import 'package:flutter_application_1/core/utils/dio_client.dart';
@@ -15,6 +17,7 @@ class AuthService {
     required String email,
     required String password,
     required String deviceId,
+    String? fcmToken,
     required String
     platform, // 'android' | 'ios' — بييجي من DeviceHelper.platform
   }) async {
@@ -26,6 +29,7 @@ class AuthService {
           'password': password,
           'deviceId': deviceId,
           'platform': platform,
+          if (fcmToken != null) 'fcmToken': fcmToken,
         },
       );
 

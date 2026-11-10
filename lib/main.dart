@@ -11,9 +11,76 @@ import 'package:flutter_application_1/features/auth/providers/auth_provider.dart
 import 'package:flutter_application_1/features/auth/providers/auth_service.dart';
 import 'package:flutter_application_1/features/auth/providers/crm_settings.dart';
 import 'package:flutter_application_1/features/notifications/provider/notifications_provider.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_application_1/features/splash/splash_screen.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
+
+/// ============================================================
+/// Local notifications (top-level عشان الـ background isolate يشوفهم)
+/// ============================================================
+
+final FlutterLocalNotificationsPlugin _local =
+    FlutterLocalNotificationsPlugin(); // 👈 اتنقل برّه الكلاس
+
+// channel بـ importance عالية عشان يطلع heads-up
+const AndroidNotificationChannel _channel = AndroidNotificationChannel(
+  'high_importance_channel',
+  'Notifications',
+  importance: Importance.high,
+); // 👈 اتنقل برّه الكلاس
+
+Future<void> _initLocalNotifications() async {
+  await _local.initialize(
+    settings: const InitializationSettings(
+      android: AndroidInitializationSettings(
+        '@mipmap/ic_launcher', // لازم يكون موجود في mipmap
+      ),
+      iOS: DarwinInitializationSettings(),
+    ),
+  );
+  await _local
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(_channel);
+}
+
+/// بتعرض الإشعار وانت جوه التطبيق (الأندرويد مش بيعرضه لوحده في الـ foreground)
+void _showLocal(RemoteMessage m) {
+  final n = m.notification;
+  if (n == null) return;
+  _local.show(
+    id: n.hashCode,
+    title: n.title,
+    body: n.body,
+    notificationDetails: NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channel.id,
+        _channel.name,
+        importance: Importance.high,
+        priority: Priority.high,
+      ),
+      iOS: const DarwinNotificationDetails(),
+    ),
+  );
+}
+
+/// ============================================================
+/// بتطبع كل تفاصيل الرسالة اللي وصلت من FCM
+/// ============================================================
+void _logMessage(String source, RemoteMessage m) {
+  debugPrint('══════════ [$source] ══════════');
+  debugPrint('messageId : ${m.messageId}');
+  debugPrint('sentTime  : ${m.sentTime}');
+  debugPrint('received  : ${DateTime.now()}');
+  debugPrint('from      : ${m.from}');
+  debugPrint('title     : ${m.notification?.title}');
+  debugPrint('body      : ${m.notification?.body}');
+  debugPrint('data      : ${m.data}');
+  debugPrint('hasNotificationPayload: ${m.notification != null}');
+  debugPrint('═══════════════════════════════');
+}
 
 /// ============================================================
 /// FIREBASE BACKGROUND MESSAGE
@@ -23,24 +90,20 @@ import 'firebase_options.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  debugPrint('BACKGROUND NOTIFICATION');
-  debugPrint('Title: ${message.notification?.title}');
-  debugPrint('Body: ${message.notification?.body}');
-  debugPrint('Data: ${message.data}');
+  _logMessage('BACKGROUND', message);
+  // ⚠️ مش بنعرض local notification هنا: لو الرسالة فيها notification payload
+  // النظام بيعرضها بنفسه، ولو عرضناها كمان هتظهر مرتين.
 }
 
 /// ============================================================
 /// MAIN
-/// بس الحاجات اللي لازم تخلص قبل أول frame (Firebase init + background handler).
-/// الباقي (permission, token, listeners) اتنقل لجوه الـ State تحت
-/// عشان ما يعطّلش فتح التطبيق وعشان الـ subscriptions تتقفل صح.
 /// ============================================================
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await _initLocalNotifications(); // 👈 جديد: كان ناقص
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -77,7 +140,7 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
     await messaging.requestPermission(alert: true, badge: true, sound: true);
     if (!mounted) return;
 
-    // التوكن بيتطبع في الـ debug بس (مش بنسيّب توكن في logs الـ release)
+    // التوكن بيتطبع في الـ debug بس
     if (kDebugMode) {
       final token = await messaging.getToken();
       debugPrint('====================================');
@@ -85,7 +148,6 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
       debugPrint('====================================');
     }
 
-    // لو الـ State اتقفل أثناء الـ await فوق، ما نضيفش subscriptions جديدة
     if (!mounted) return;
 
     _subs.add(
@@ -94,15 +156,26 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
       }),
     );
 
+    // التطبيق مفتوح (foreground)
     _subs.add(
       FirebaseMessaging.onMessage.listen((message) {
-        debugPrint('FOREGROUND NOTIFICATION');
-        debugPrint('Title: ${message.notification?.title}');
-        debugPrint('Body: ${message.notification?.body}');
-        debugPrint('Data: ${message.data}');
-        NotificationBadge.refresh(); // 👈 حدّث رقم الجرس فوراً
+        _logMessage('FOREGROUND', message);
+        _showLocal(message); // 👈 جديد: كان ناقص، ده اللي بيظهر الإشعار
+        NotificationBadge.refresh();
       }),
     );
+
+    // التطبيق كان في الخلفية واليوزر داس على الإشعار
+    _subs.add(
+      FirebaseMessaging.onMessageOpenedApp.listen((message) {
+        _logMessage('OPENED_APP', message);
+        NotificationBadge.refresh();
+      }),
+    );
+
+    // التطبيق كان مقفول تماماً واتفتح من الإشعار
+    final initial = await messaging.getInitialMessage();
+    if (initial != null) _logMessage('TERMINATED_OPEN', initial);
   }
 
   @override
@@ -118,11 +191,8 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // الـ create form: الـ provider بيعمل dispose للـ instance لوحده.
-        // lazy افتراضياً: مش بيتعمل غير أول ما حد يقراه (LoginScreen).
-        // ما تستخدمش .value مع instance جديد (new) — ده بيعمل leak لأن محدش بيعمل له dispose.
         ChangeNotifierProvider(create: (_) => AuthProvider(AuthService())),
-        ChangeNotifierProvider(create: (_) => CrmSettingsProvider()), // 👈 جديد
+        ChangeNotifierProvider(create: (_) => CrmSettingsProvider()),
         // providers الـ features (Leads, Users, ...) مكانها MainShell مش هنا،
         // عشان تتقفل تلقائي مع الـ logout.
       ],
