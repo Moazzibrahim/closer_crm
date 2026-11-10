@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "211804160825",
+    "project_id": "crm-real-estate-89a44",
+    "storage_bucket": "crm-real-estate-89a44.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:211804160825:android:02403a62534a3e268adee8",
+        "android_client_info": {
+          "package_name": "com.crmrealestate.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCqR8zjm6jtjeC-_S58SJdmLRpi5O3SElk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
