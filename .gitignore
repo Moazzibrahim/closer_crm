@@ -45,3 +45,5 @@ app.*.map.json
 /android/app/release
 
 android/app/crm-real-estate-89a44-firebase-adminsdk-fbsvc-c60836f07f.json
+android/key.properties
+android/app/upload-keystore.jks

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Flutter Application 1</string>
+    <string>Closer CRM</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
     <string>We need your location to show your current position on the map.</string>
 	<key>CFBundleExecutable</key>
