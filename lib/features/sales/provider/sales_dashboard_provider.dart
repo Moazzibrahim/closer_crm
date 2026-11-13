@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
 import 'package:flutter_application_1/core/utils/dio_client.dart';
 import 'package:flutter_application_1/features/sales/model/sales_dashboard_model.dart';
+import 'package:flutter_application_1/features/team%20leader/data/team_members_model.dart';
 
 // ─────────────────────────────────────────────
 //  Service
@@ -28,18 +29,23 @@ class SalesDashboardService {
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   /// range = null -> All time (من غير createdFrom/createdTo)
-  Future<StagesData> stages(String salesId, DateTimeRange? range) async {
+  Map<String, dynamic> _who(String salesId, bool team) =>
+      team ? const {} : {'scope': 'sales', 'sales': salesId};
+
+  Future<StagesData> stages(
+    String salesId,
+    DateTimeRange? range, {
+    bool team = false,
+  }) async {
     final j = await _get(Endpoints.dashboardStages, {
-      'scope': 'sales',
-      'sales': salesId,
+      ..._who(salesId, team),
       if (range != null) 'createdFrom': _ymd(range.start),
       if (range != null) 'createdTo': _ymd(range.end),
     });
     return StagesData.fromJson(j);
   }
 
-  Future<FollowUpsData> followUps(String salesId) async {
-    // بداية النهارده بتوقيت دبي (UTC+4) محوّلة لـ UTC
+  Future<FollowUpsData> followUps(String salesId, {bool team = false}) async {
     final dubai = DateTime.now().toUtc().add(const Duration(hours: 4));
     final todayStart = DateTime.utc(
       dubai.year,
@@ -47,8 +53,7 @@ class SalesDashboardService {
       dubai.day,
     ).subtract(const Duration(hours: 4));
     final j = await _get(Endpoints.dashboardFollowUps, {
-      'scope': 'sales',
-      'sales': salesId,
+      ..._who(salesId, team),
       'todayStart': todayStart.toIso8601String(),
     });
     return FollowUpsData.fromJson(j);
@@ -56,21 +61,37 @@ class SalesDashboardService {
 
   Future<DealsData> deals(
     String salesId, {
-    required String view, // month | quarter | year
+    required String view,
     required int year,
     required int quarter,
     required int month,
+    bool team = false,
   }) async {
     final j = await _get(Endpoints.dashboardDeals, {
-      'view': view, // ⚠️ لو الباك مش بيقراه شيل السطر ده
+      'view': view,
       'year': year,
       'quarter': quarter,
       'month': month,
-      'sales': salesId,
-      'scope': 'sales',
+      if (!team) 'sales': salesId, // التيم ليدر: من غير sales = فريقه كله
       'tz': 'Asia/Dubai',
     });
     return DealsData.fromJson(j);
+  }
+
+  String _todayStart() {
+    final dubai = DateTime.now().toUtc().add(const Duration(hours: 4));
+    return DateTime.utc(
+      dubai.year,
+      dubai.month,
+      dubai.day,
+    ).subtract(const Duration(hours: 4)).toIso8601String();
+  }
+
+  Future<TeamData> team() async {
+    final j = await _get(Endpoints.dashboardTeam, {
+      'todayStart': _todayStart(),
+    });
+    return TeamData.fromJson(j);
   }
 }
 
@@ -78,10 +99,12 @@ class SalesDashboardService {
 //  Provider
 // ─────────────────────────────────────────────
 class SalesDashboardProvider extends ChangeNotifier {
-  final String salesId; // اليوزر الحالي
+  final String salesId;
+  final bool isTeam; // true للتيم ليدر
   final _service = SalesDashboardService();
 
-  SalesDashboardProvider(this.salesId) {
+  SalesDashboardProvider(this.salesId, {this.isTeam = false}) {
+    /* زي ما هو */
     final now = DateTime.now();
     // الافتراضي: الشهر الحالي
     range = null;
@@ -111,15 +134,36 @@ class SalesDashboardProvider extends ChangeNotifier {
   String _err(Object e) => e is ApiException ? e.message : '$e';
 
   /// تحميل كل حاجة بالتوازي (للـ pull-to-refresh)
-  Future<void> load() =>
-      Future.wait([loadStages(), loadFollowUps(), loadDeals()]);
+  TeamData? team;
+  bool teamLoading = false;
+  String? teamError;
+
+  Future<void> load() => Future.wait([
+    loadStages(),
+    loadFollowUps(),
+    loadDeals(),
+    if (isTeam) loadTeam(),
+  ]);
+
+  Future<void> loadTeam() async {
+    teamLoading = true;
+    teamError = null;
+    notifyListeners();
+    try {
+      team = await _service.team();
+    } catch (e) {
+      teamError = _err(e);
+    }
+    teamLoading = false;
+    notifyListeners();
+  }
 
   Future<void> loadStages() async {
     stagesLoading = true;
     stagesError = null;
     notifyListeners();
     try {
-      stages = await _service.stages(salesId, range);
+      stages = await _service.stages(salesId, range, team: isTeam);
     } catch (e) {
       stagesError = _err(e);
     }
@@ -132,7 +176,7 @@ class SalesDashboardProvider extends ChangeNotifier {
     followUpsError = null;
     notifyListeners();
     try {
-      followUps = await _service.followUps(salesId);
+      followUps = await _service.followUps(salesId, team: isTeam);
     } catch (e) {
       followUpsError = _err(e);
     }
@@ -151,6 +195,7 @@ class SalesDashboardProvider extends ChangeNotifier {
         year: dealsYear,
         quarter: dealsQuarter,
         month: dealsMonth,
+        team: isTeam,
       );
     } catch (e) {
       dealsError = _err(e);

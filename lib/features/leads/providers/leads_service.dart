@@ -156,6 +156,27 @@ class LeadsService {
     }
   }
 
+    /// request واحد: assign + stage + resetDate + clearHistory على كل الـ leads
+  Future<Map<String, dynamic>> bulkAssignActions(
+    List<String> leadIds, {
+    required List<String> salesIds,
+    String mode = 'add', // replace | add
+    String assignedAs = 'sales', // 'sales' أو team leader (اتأكد من القيمة)
+    String? stageId, // قيمة واحدة مش ليست
+    DateTime? resetDate,
+    String? clearHistoryNotes,
+  }) async {
+    final res = await bulkActions(leadIds, {
+      'assign': {'sales': salesIds, 'mode': mode, 'assignedAs': assignedAs},
+      'stage': ?stageId, // بتتبعت بس لو اتحددت
+      if (resetDate != null) 'resetDate': resetDate.toUtc().toIso8601String(),
+      if (clearHistoryNotes != null)
+        'clearHistory': {'notes': clearHistoryNotes},
+    });
+    unawaited(_notifyAssigned()); // إشعار واحد
+    return res;
+  }
+
   /// mode: replace | add | remove
   // Future<Map<String, dynamic>> assign(
   //   String leadId,

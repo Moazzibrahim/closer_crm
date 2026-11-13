@@ -1,3 +1,4 @@
+// ignore_for_file: deprecated_member_use
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -20,37 +21,67 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+    with TickerProviderStateMixin {
+  late final AnimationController _intro; // دخول العناصر بالتتابع
+  late final AnimationController _pulse; // نبض الحلقات (بيتكرر)
 
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+  late final Animation<double> _logoFade;
+  late final Animation<double> _logoScale;
+  late final Animation<double> _titleFade;
+  late final Animation<Offset> _titleSlide;
+  late final Animation<double> _tagFade;
 
   // حجم اللوجو في السبلاش
   static const double _logoSize = 110;
+  static const Duration _splashDuration = Duration(milliseconds: 2500);
 
   @override
   void initState() {
     super.initState();
 
-    _controller = AnimationController(
+    _intro = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1800),
+    );
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
+
+    // اللوجو الأول
+    _logoFade = CurvedAnimation(
+      parent: _intro,
+      curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
+    );
+    _logoScale = Tween<double>(begin: 0.7, end: 1).animate(
+      CurvedAnimation(
+        parent: _intro,
+        curve: const Interval(0.0, 0.55, curve: Curves.easeOutBack),
+      ),
     );
 
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
+    // بعده الاسم (بيطلع من تحت)
+    _titleFade = CurvedAnimation(
+      parent: _intro,
+      curve: const Interval(0.3, 0.7, curve: Curves.easeOut),
+    );
+    _titleSlide = Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _intro,
+            curve: const Interval(0.3, 0.7, curve: Curves.easeOutCubic),
+          ),
+        );
+
+    // وآخر حاجة الـ tagline
+    _tagFade = CurvedAnimation(
+      parent: _intro,
+      curve: const Interval(0.55, 1.0, curve: Curves.easeOut),
     );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.85,
-      end: 1,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    _intro.forward();
 
-    _controller.forward();
-
-    Timer(const Duration(milliseconds: 2500), _goNext);
+    Timer(_splashDuration, _goNext);
   }
 
   /// لو فيه session محفوظة (token + role) → ادخل على الشاشة الرئيسية مباشرة،
@@ -80,7 +111,8 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _controller.dispose();
+    _intro.dispose();
+    _pulse.dispose();
     super.dispose();
   }
 
@@ -90,64 +122,103 @@ class _SplashScreenState extends State<SplashScreen>
       backgroundColor: AppColors.navy,
       body: Stack(
         children: [
-          // Decorative circle
-          Positioned(
-            top: -120,
-            right: -100,
+          // ── Background: gradient + dot grid ──
+          Positioned.fill(
             child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.navyLight.withOpacity(0.5),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  // 👈 كان Color(0xFF0E2A44) كحلي. بقى navyLight (رمادي غامق)
+                  // عشان يفضل فيه تدرّج خفيف في النص بدل أسود مسطح
+                  colors: [AppColors.navy, AppColors.navyLight, AppColors.navy],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
               ),
             ),
           ),
+          Positioned.fill(child: CustomPaint(painter: _DotsPainter())),
 
-          // Decorative circle
-          Positioned(
-            bottom: -150,
-            left: -100,
-            child: Container(
-              width: 350,
-              height: 350,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.navyLight.withOpacity(0.35),
-              ),
-            ),
-          ),
-
+          // ── Center content ──
           Center(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    /// LOGO (الأيقونة الجديدة)
-                    // الـ Container هنا بس عشان الظل، لأن الأيقونة نفسها
-                    // خلفيتها navy ومش هتبان على خلفية السبلاش من غير ظل
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(_logoSize * 0.24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.35),
-                            blurRadius: 30,
-                            offset: const Offset(0, 15),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Logo + glow + pulsing rings
+                SizedBox(
+                  width: 260,
+                  height: 260,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // توهّج دهبي ناعم ورا اللوجو
+                      Container(
+                        width: 220,
+                        height: 220,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              AppColors.gold.withOpacity(0.22),
+                              AppColors.gold.withOpacity(0.0),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                      child: const CloserMark(size: _logoSize),
-                    ),
 
-                    const SizedBox(height: 28),
+                      // حلقتين بينبضوا (الثانية متأخرة نص دورة)
+                      AnimatedBuilder(
+                        animation: _pulse,
+                        builder: (_, _) => Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            _ring(_pulse.value),
+                            _ring((_pulse.value + 0.5) % 1.0),
+                          ],
+                        ),
+                      ),
 
-                    /// اسم التطبيق: closer (أبيض) + crm (دهبي)
-                    // السبلاش دايماً navy فاللون الأبيض ثابت (مش بيعتمد على الثيم)
-                    Text.rich(
+                      // اللوجو
+                      FadeTransition(
+                        opacity: _logoFade,
+                        child: ScaleTransition(
+                          scale: _logoScale,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(
+                                _logoSize * 0.24,
+                              ),
+                              border: Border.all(
+                                color: AppColors.gold.withOpacity(0.35),
+                                width: 1.2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.4),
+                                  blurRadius: 30,
+                                  offset: const Offset(0, 14),
+                                ),
+                                BoxShadow(
+                                  color: AppColors.gold.withOpacity(0.18),
+                                  blurRadius: 40,
+                                ),
+                              ],
+                            ),
+                            child: const CloserMark(size: _logoSize),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                // اسم التطبيق: closer (أبيض) + crm (دهبي)
+                FadeTransition(
+                  opacity: _titleFade,
+                  child: SlideTransition(
+                    position: _titleSlide,
+                    child: Text.rich(
                       const TextSpan(
                         children: [
                           TextSpan(
@@ -161,40 +232,80 @@ class _SplashScreenState extends State<SplashScreen>
                         ],
                       ),
                       style: const TextStyle(
-                        fontSize: 34,
+                        fontSize: 36,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,
                       ),
                     ),
-
-                    const SizedBox(height: 12),
-
-                    Text(
-                      'Manage. Connect. Grow.',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.65),
-                        fontSize: 14,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+
+                const SizedBox(height: 14),
+
+                // Tagline بين خطين دهبي
+                FadeTransition(
+                  opacity: _tagFade,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _line(),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Manage. Connect. Grow.',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 13,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _line(),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
 
+          // ── Bottom: loading bar + footer ──
           Positioned(
-            bottom: 35,
+            bottom: 36,
             left: 0,
             right: 0,
-            child: Center(
-              child: Text(
-                'YOUR REAL ESTATE MANAGEMENT PLATFORM',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.35),
-                  fontSize: 9,
-                  letterSpacing: 1.5,
-                ),
+            child: FadeTransition(
+              opacity: _tagFade,
+              child: Column(
+                children: [
+                  // شريط تحميل بيتملى على مدة السبلاش
+                  SizedBox(
+                    width: 120,
+                    height: 3,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: 1),
+                        duration: _splashDuration,
+                        curve: Curves.easeInOut,
+                        builder: (_, v, _) => LinearProgressIndicator(
+                          value: v,
+                          backgroundColor: Colors.white.withOpacity(0.1),
+                          valueColor: const AlwaysStoppedAnimation(
+                            AppColors.gold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'YOUR REAL ESTATE MANAGEMENT PLATFORM',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.35),
+                      fontSize: 9,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -202,4 +313,40 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
+
+  // حلقة نبض: بتكبر وبتختفي (t من 0 → 1)
+  Widget _ring(double t) {
+    final size = _logoSize + 20 + (t * 110);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: AppColors.gold.withOpacity((1 - t) * 0.35),
+          width: 1.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _line() =>
+      Container(width: 22, height: 1, color: AppColors.gold.withOpacity(0.5));
+}
+
+/// نقاط خفيفة في الخلفية (dot grid)
+class _DotsPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white.withOpacity(0.045);
+    const gap = 28.0;
+    for (double x = gap / 2; x < size.width; x += gap) {
+      for (double y = gap / 2; y < size.height; y += gap) {
+        canvas.drawCircle(Offset(x, y), 1.1, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -51,6 +51,9 @@ class DioClient {
   /// Converts a DioException into a readable message from the backend response (message/error)
   static ApiException parse(Object e) {
     if (e is DioException) {
+      print(
+        'FAILED: ${e.requestOptions.method} ${e.requestOptions.path} → ${e.response?.statusCode}',
+      );
       final data = e.response?.data;
       String? msg;
       if (data is Map) {

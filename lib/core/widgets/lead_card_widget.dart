@@ -40,13 +40,17 @@ class LeadCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stage = lead.stageColor;
-    final baseSurface = dark ? AppColors.navyLight : AppColors.white;
     final accent = dark ? AppColors.gold : AppColors.navy;
+    final baseSurface = dark ? AppColors.navyLight : AppColors.white;
     final surface = selected
-        ? Color.alphaBlend(accent.withOpacity(0.09), baseSurface)
+        ? Color.alphaBlend(accent.withOpacity(0.08), baseSurface)
         : baseSurface;
     final textMain = dark ? AppColors.white : AppColors.textPrimary;
     final textSub = dark ? Colors.white60 : AppColors.textSecondary;
+    final borderColor = dark
+        ? AppColors.goldLight.withOpacity(0.15)
+        : AppColors.border;
+
     // معاد المتابعة (بيتمسح من السيرفر لما الـ stage نهائية → نرجع لتاريخ الـ stage)
     final followUp = lead.nextFollowUpAt;
     final isLate = followUp != null && followUp.isBefore(DateTime.now());
@@ -55,288 +59,256 @@ class LeadCard extends StatelessWidget {
         ? Icons.alarm_rounded
         : Icons.schedule_rounded;
     final dateColor = isLate ? const Color(0xFFF2545B) : textSub;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
-        child: Container(
+        borderRadius: BorderRadius.circular(24),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
           decoration: BoxDecoration(
             color: surface,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(
-              color: selected ? accent : Colors.transparent,
-              width: 2,
+              color: selected ? accent : borderColor,
+              width: selected ? 2 : 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(dark ? 0.25 : 0.06),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+                color: Colors.black.withOpacity(dark ? 0.25 : 0.05),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(width: 5, color: stage),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Row 1: stage + date
-                        Row(
+                // ── Header: stage + date (خلفية بدرجة لون الـ stage) ──
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        stage.withOpacity(dark ? 0.22 : 0.14),
+                        stage.withOpacity(0.03),
+                      ],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      if (selecting) ...[
+                        _SelectDot(selected: selected, dark: dark),
+                        const SizedBox(width: 10),
+                      ],
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (selecting) ...[
-                              _SelectDot(selected: selected, dark: dark),
-                              const SizedBox(width: 10),
-                            ],
-                            Flexible(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: stage.withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 7,
-                                      height: 7,
-                                      decoration: BoxDecoration(
-                                        color: stage,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        lead.stageName.toUpperCase(),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: stage,
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.8,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: stage,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: stage.withOpacity(0.5),
+                                    blurRadius: 6,
+                                  ),
+                                ],
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const Spacer(),
-                            Icon(
-                              Icons.schedule_rounded,
-                              size: 14,
-                              color: textSub,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              dateText,
-                              style: TextStyle(
-                                fontSize: 11.5,
-                                color: textSub,
-                                fontWeight: FontWeight.w500,
+                            Flexible(
+                              child: Text(
+                                lead.stageName.toUpperCase(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: stage,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 14),
+                      ),
+                      const Spacer(),
+                      Icon(dateIcon, size: 14, color: dateColor),
+                      const SizedBox(width: 4),
+                      Text(
+                        dateText,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: dateColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-                        // Row 2: avatar + name + project + type
-                        Row(
-                          children: [
-                            Container(
-                              width: 46,
-                              height: 46,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Avatar + name + project + type ──
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(2.5),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: stage.withOpacity(0.7),
+                                width: 2,
+                              ),
+                            ),
+                            child: Container(
+                              width: 44,
+                              height: 44,
                               alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
                                   colors: [AppColors.navy, AppColors.navyLight],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
-                                borderRadius: BorderRadius.circular(14),
                               ),
                               child: Text(
                                 _initials,
                                 style: const TextStyle(
                                   color: AppColors.gold,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: 16,
+                                  fontSize: 15,
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    lead.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w800,
-                                      color: textMain,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  lead.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                    color: textMain,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.apartment_rounded,
+                                      size: 14,
+                                      color: accent,
                                     ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.apartment_rounded,
-                                        size: 14,
-                                        color: accent,
+                                    const SizedBox(width: 4),
+                                    Flexible(
+                                      child: Text(
+                                        lead.project,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.3,
+                                          color: dark
+                                              ? AppColors.goldLight
+                                              : AppColors.navy,
+                                        ),
                                       ),
-                                      const SizedBox(width: 4),
-                                      Flexible(
+                                    ),
+                                    if (lead.leadType.isNotEmpty) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 7,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.gold.withOpacity(
+                                            0.18,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
                                         child: Text(
-                                          lead.project,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                          lead.leadType.toUpperCase(),
                                           style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: 0.4,
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 0.5,
                                             color: dark
-                                                ? AppColors.goldLight
-                                                : AppColors.navy,
+                                                ? AppColors.gold
+                                                : const Color(0xFF8A6A00),
                                           ),
                                         ),
                                       ),
-                                      if (lead.leadType.isNotEmpty) ...[
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 6,
-                                            vertical: 1.5,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.gold.withOpacity(
-                                              0.18,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              6,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            lead.leadType.toUpperCase(),
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w800,
-                                              color: dark
-                                                  ? AppColors.gold
-                                                  : const Color(0xFF8A6A00),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
                                     ],
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-
-                        // Row 3: salesman + created
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: dark
-                                ? Colors.white.withOpacity(0.05)
-                                : AppColors.background,
-                            borderRadius: BorderRadius.circular(14),
                           ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _InfoTile(
-                                  icon: Icons.support_agent_rounded,
-                                  label: 'SALESMAN',
-                                  value: lead.salesman,
-                                  dark: dark,
-                                ),
-                              ),
-                              Container(
-                                width: 1,
-                                height: 32,
-                                color: dark
-                                    ? Colors.white.withOpacity(0.1)
-                                    : AppColors.border,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _InfoTile(
-                                  icon: Icons.event_available_rounded,
-                                  label: 'CREATED',
-                                  value: fmtLeadDate(lead.created),
-                                  dark: dark,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 14),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
 
-                        // Row 4: phone + actions
-                        LeadPhoneRow(
-                          phone: lead.phone,
-                          countryCode: lead.phoneCountryCode,
-                          dark: dark,
-                          lastComment: lead.lastComment,
-                          onNoteTap:
-                              onNote, // ✅ لو الشاشة بعتت onNote يتنفذ، وإلا بيفتح شيت آخر كومنت
-                        ),
-                        // Row(
-                        //   children: [
-                        //     Expanded(
-                        //       child: Text(
-                        //         lead.fullPhone,
-                        //         maxLines: 1,
-                        //         overflow: TextOverflow.ellipsis,
-                        //         style: TextStyle(
-                        //           fontSize: 16,
-                        //           fontWeight: FontWeight.w800,
-                        //           letterSpacing: 0.4,
-                        //           color: textMain,
-                        //         ),
-                        //       ),
-                        //     ),
-                        //     _ActionBtn(
-                        //       icon: Icons.call_rounded,
-                        //       color: accent,
-                        //       onTap: onCall ?? () => _open('tel:${lead.fullPhone}'),
-                        //     ),
-                        //     const SizedBox(width: 8),
-                        //     _ActionBtn(
-                        //       icon: Icons.chat_rounded,
-                        //       color: const Color(0xFF16A34A),
-                        //       onTap: onWhatsApp ?? () => _open('https://wa.me/$digits'),
-                        //     ),
-                        //     const SizedBox(width: 8),
-                        //     _ActionBtn(
-                        //       icon: Icons.sticky_note_2_rounded,
-                        //       color: dark ? AppColors.goldLight : AppColors.navyLight,
-                        //       onTap: onNote,
-                        //     ),
-                        //   ],
-                        // ),
-                      ],
-                    ),
+                      // ── Salesman + Created (chips) ──
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 6,
+                            child: _InfoChip(
+                              icon: Icons.support_agent_rounded,
+                              label: 'SALESMAN',
+                              value: lead.salesman,
+                              dark: dark,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 5,
+                            child: _InfoChip(
+                              icon: Icons.event_available_rounded,
+                              label: 'CREATED',
+                              value: fmtLeadDate(lead.created),
+                              dark: dark,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // ── Divider + phone + actions ──
+                      Divider(height: 1, color: borderColor),
+                      const SizedBox(height: 12),
+                      LeadPhoneRow(
+                        phone: lead.phone,
+                        countryCode: lead.phoneCountryCode,
+                        dark: dark,
+                        lastComment: lead.lastComment,
+                        onNoteTap: onNote,
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -348,11 +320,11 @@ class LeadCard extends StatelessWidget {
   }
 }
 
-class _InfoTile extends StatelessWidget {
+class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label, value;
   final bool dark;
-  const _InfoTile({
+  const _InfoChip({
     required this.icon,
     required this.label,
     required this.value,
@@ -361,38 +333,54 @@ class _InfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: dark ? AppColors.gold : AppColors.navy),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                  color: dark ? Colors.white54 : AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: dark ? AppColors.white : AppColors.textPrimary,
-                ),
-              ),
-            ],
+    final accent = dark ? AppColors.gold : AppColors.navy;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        color: dark ? Colors.white.withOpacity(0.05) : AppColors.background,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 16, color: accent),
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                    color: dark ? Colors.white54 : AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  value.isEmpty ? '—' : value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: dark ? AppColors.white : AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

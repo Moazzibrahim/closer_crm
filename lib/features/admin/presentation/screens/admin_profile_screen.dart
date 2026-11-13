@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
+import 'package:flutter_application_1/features/Reshuffle/presentation/screens/reshuffle_rules_screen.dart';
 import 'package:flutter_application_1/features/auth/presentation/screens/activity_log_screen.dart';
 import 'package:flutter_application_1/features/auth/presentation/screens/login_screen.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
@@ -75,6 +76,13 @@ List<_MenuGroup> _groups = [
       Icons.devices_rounded,
       page: (_) => const SessionsScreen(),
     ), // 👈 جديد
+  ]),
+  _MenuGroup('Automation', [
+    _MenuItem(
+      'Reshuffle Rules',
+      Icons.shuffle_rounded,
+      page: (_) => const ReshuffleRulesScreen(),
+    ),
   ]),
   _MenuGroup('CRM Setup', [
     _MenuItem(

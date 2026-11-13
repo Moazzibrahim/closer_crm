@@ -242,7 +242,7 @@ class _Header extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const CloserLogo(size: 52),
+                      const CloserLogo(size: 52, background: Colors.black),
                       const Spacer(),
                       ValueListenableBuilder<int>(
                         valueListenable: NotificationBadge.count,

@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_service.dart';
 import 'package:flutter_application_1/features/crud/data/users_model.dart';
+import 'package:flutter_application_1/features/crud/providers/users_lookup_service.dart';
 import 'package:flutter_application_1/features/leads/providers/leads_service.dart';
 
 // ─────────────────────────────────────────────
@@ -49,6 +50,8 @@ class AssignResult {
   final bool clearHistory; // Admin بس
   final bool resetCreationDate; // Admin بس
   final DateTime? creationDate; // بيتستخدم لو resetCreationDate = true
+  final StageOpt? stage; // 👈 جديد
+
   const AssignResult({
     required this.target,
     required this.people,
@@ -56,6 +59,7 @@ class AssignResult {
     this.clearHistory = false,
     this.resetCreationDate = false,
     this.creationDate,
+    this.stage,
   });
 
   String get names => people.map((p) => p.name).join(', ');
@@ -116,6 +120,14 @@ Future<AssignResult?> showAssignSheet(
   required int count,
   bool showHistoryOptions = false,
   List<String> currentIds = const [],
+  List<StageOpt> stages = const [], // 👈
+  bool allowTeamLeader = true, // false للتيم ليدر
+  String? teamOwnerId, // null = كل اليوزرز (أدمن)
+  bool teamOwnerIsManager = false,
+  bool allowResetCreationDate = true,
+  String? teamOwnerName,
+  Map<String, String> currentNames = const {},
+  bool allowAddToCurrent = true, // 👈 Add to current للأدمن بس
 }) {
   return _showSheet<AssignResult>(
     context,
@@ -123,6 +135,14 @@ Future<AssignResult?> showAssignSheet(
       count: count,
       showHistoryOptions: showHistoryOptions,
       currentIds: currentIds,
+      stages: stages, // 👈
+      allowTeamLeader: allowTeamLeader,
+      teamOwnerId: teamOwnerId,
+      teamOwnerIsManager: teamOwnerIsManager,
+      allowResetCreationDate: allowResetCreationDate,
+      teamOwnerName: teamOwnerName,
+      currentNames: currentNames,
+      allowAddToCurrent: allowAddToCurrent, // 👈
     ),
   );
 }
@@ -578,10 +598,27 @@ class _AssignSheet extends StatefulWidget {
   final int count;
   final bool showHistoryOptions;
   final List<String> currentIds;
+  final List<StageOpt> stages; // 👈
+  final bool allowTeamLeader;
+  final String? teamOwnerId;
+  final bool teamOwnerIsManager;
+  final bool allowResetCreationDate;
+  final String? teamOwnerName;
+  final Map<String, String> currentNames;
+  final bool allowAddToCurrent; // 👈
+
   const _AssignSheet({
     required this.count,
     this.showHistoryOptions = false,
     this.currentIds = const [],
+    this.stages = const [], // 👈
+    this.allowTeamLeader = true,
+    this.teamOwnerId,
+    this.teamOwnerIsManager = false,
+    this.allowResetCreationDate = true,
+    this.teamOwnerName,
+    this.currentNames = const {},
+    this.allowAddToCurrent = true, // 👈
   });
 
   @override
@@ -591,7 +628,9 @@ class _AssignSheet extends StatefulWidget {
 class _AssignSheetState extends State<_AssignSheet> {
   late final Set<String> _initial = widget.currentIds.toSet();
   // ... باقي الحقول زي ما هي
-  AssignTarget? _target;
+  late AssignTarget? _target = widget.allowTeamLeader
+      ? null
+      : AssignTarget.salesman;
   final Set<String> _picked = {};
   bool _replace = true;
   final TextEditingController _search = TextEditingController();
@@ -600,6 +639,21 @@ class _AssignSheetState extends State<_AssignSheet> {
   bool _clearHistory = false;
   bool _resetCreation = false;
   DateTime _creationDate = DateTime.now();
+  // 4) _AssignSheetState: جنب _creationDate
+  bool _changeStage = false;
+  StageOpt? _stage;
+
+  List<StageOpt> get _stageOptions =>
+      widget.stages.where((s) => !s.isDeal).toList();
+
+  StageOpt? get _freshStage {
+    for (final s in _stageOptions) {
+      if (s.name.toLowerCase().replaceAll(RegExp(r'[\s_\-]'), '') == 'fresh') {
+        return s;
+      }
+    }
+    return null;
+  }
 
   Future<void> _pickCreationDate() async {
     final now = DateTime.now();
@@ -644,13 +698,11 @@ class _AssignSheetState extends State<_AssignSheet> {
   }
 
   /// Replace: الحاليين معلّمين تلقائياً. Add: الاختيار فاضي.
+  /// الـ current معلّمين تلقائياً في Replace و Add
   void _resetPicked() {
-    _picked.clear();
-    if (_replace) {
-      _picked.addAll(
-        _source.where((p) => _initial.contains(p.id)).map((p) => p.id),
-      );
-    }
+    _picked
+      ..clear()
+      ..addAll(_source.where((p) => _initial.contains(p.id)).map((p) => p.id));
   }
 
   Future<void> _load() async {
@@ -659,26 +711,76 @@ class _AssignSheetState extends State<_AssignSheet> {
       _error = null;
     });
     try {
-      final r = await AuthService().getAllUsers();
-      final users = (r['data'] as List? ?? [])
-          .whereType<Map>()
-          .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))
-          .where((u) => u.id != null && u.active)
-          .toList();
-
-      LeadPerson toPerson(UserModel u) => LeadPerson(
-        u.id!,
-        u.fullName.isEmpty ? (u.email ?? 'Unnamed') : u.fullName,
-        '${u.role}',
-      );
       int byName(LeadPerson a, LeadPerson b) =>
           a.name.toLowerCase().compareTo(b.name.toLowerCase());
 
-      _salesmen = users.where((u) => u.role == 'Sales').map(toPerson).toList()
-        ..sort(byName);
-      _leaders =
-          users.where((u) => u.role == 'Team Leader').map(toPerson).toList()
-            ..sort(byName);
+      if (widget.teamOwnerId != null) {
+        // مانجر / تيم ليدر: فريقه بس
+        final team = await UsersLookupService().myTeam(
+          isManager: widget.teamOwnerIsManager,
+          userId: widget.teamOwnerId!,
+        );
+        LeadPerson toPerson(LookupUser u) => LeadPerson(
+          u.id,
+          u.name.isEmpty ? (u.email.isEmpty ? 'Unnamed' : u.email) : u.name,
+          u.role,
+        );
+        final sales =
+            team
+                .where((u) => u.role == 'Sales' && u.id != widget.teamOwnerId)
+                .map(toPerson)
+                .toList()
+              ..sort(byName);
+        _salesmen = [
+          if (widget.teamOwnerName != null && !widget.teamOwnerIsManager)
+            LeadPerson(
+              widget.teamOwnerId!,
+              widget.teamOwnerName!.trim().isEmpty
+                  ? 'Me'
+                  : '${widget.teamOwnerName} (me)',
+              'Team Leader',
+            ),
+          ...sales,
+        ];
+        _leaders = widget.allowTeamLeader
+            ? (team.where((u) => u.role == 'Team Leader').map(toPerson).toList()
+                ..sort(byName))
+            : <LeadPerson>[];
+      } else {
+        // أدمن: كل اليوزرز (زي ما كان)
+        final r = await AuthService().getAllUsers();
+        final users = (r['data'] as List? ?? [])
+            .whereType<Map>()
+            .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))
+            .where((u) => u.id != null && u.active)
+            .toList();
+
+        LeadPerson toPerson(UserModel u) => LeadPerson(
+          u.id!,
+          u.fullName.isEmpty ? (u.email ?? 'Unnamed') : u.fullName,
+          '${u.role}',
+        );
+        _salesmen = users.where((u) => u.role == 'Sales').map(toPerson).toList()
+          ..sort(byName);
+        _leaders =
+            users.where((u) => u.role == 'Team Leader').map(toPerson).toList()
+              ..sort(byName);
+      }
+      // السيلز الحاليين اللي مش في القايمة (معطّلين / مش تابعين للتيم ليدر):
+      // نضيفهم عشان يتعلّموا CURRENT ويفضلوا ظاهرين
+      for (final id in widget.currentIds) {
+        final exists =
+            _salesmen.any((p) => p.id == id) || _leaders.any((p) => p.id == id);
+        if (!exists) {
+          _salesmen.add(
+            LeadPerson(
+              id,
+              widget.currentNames[id] ?? 'Current assignee',
+              'Current',
+            ),
+          );
+        }
+      }
     } catch (e) {
       _error = e.toString();
     }
@@ -700,13 +802,32 @@ class _AssignSheetState extends State<_AssignSheet> {
   void _toggle(LeadPerson person) {
     HapticFeedback.selectionClick();
     setState(() {
+      // Replace → single select
+      if (_replace) {
+        if (_picked.contains(person.id)) {
+          _picked.clear();
+        } else {
+          _picked
+            ..clear()
+            ..add(person.id);
+        }
+        return;
+      }
+
+      // Add → multi select، والـ current ثابتين (مينفعش يتشالوا)
+      if (_initial.contains(person.id)) return;
       if (!_picked.add(person.id)) _picked.remove(person.id);
     });
   }
 
   void _submit() {
-    final people = _source.where((p) => _picked.contains(p.id)).toList();
-
+    // Add → الجداد بس (الـ current موجودين أصلاً)، Replace → الاختيار كله
+    final people = _source
+        .where(
+          (p) =>
+              _picked.contains(p.id) && (_replace || !_initial.contains(p.id)),
+        )
+        .toList();
     final now = DateTime.now().subtract(const Duration(minutes: 1));
     final date = _creationDate.isAfter(now) ? now : _creationDate;
 
@@ -714,10 +835,13 @@ class _AssignSheetState extends State<_AssignSheet> {
       AssignResult(
         target: _target!,
         people: people,
-        replace: _replace,
+        replace: widget.allowAddToCurrent ? _replace : true, // 👈
         clearHistory: _clearHistory,
-        resetCreationDate: _resetCreation,
-        creationDate: _resetCreation ? date : null,
+        resetCreationDate: widget.allowResetCreationDate && _resetCreation,
+        creationDate: (widget.allowResetCreationDate && _resetCreation)
+            ? date
+            : null,
+        stage: _changeStage ? _stage : null, // 👈
       ),
     );
   }
@@ -740,7 +864,9 @@ class _AssignSheetState extends State<_AssignSheet> {
     return _SheetFrame(
       title: title,
       subtitle: subtitle,
-      onBack: _target == null ? null : () => setState(() => _target = null),
+      onBack: (_target == null || !widget.allowTeamLeader)
+          ? null
+          : () => setState(() => _target = null),
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 220),
         child: _target == null
@@ -806,14 +932,21 @@ class _AssignSheetState extends State<_AssignSheet> {
         .where((e) => _initial.contains(e.id))
         .map((e) => e.id)
         .toSet();
-    final unchanged =
-        _replace &&
-        base.isNotEmpty &&
-        _picked.length == base.length &&
-        _picked.containsAll(base);
+    // 6) _buildPicker: بدّل unchanged وضيف stageMissing
+    final newCount = _picked.where((id) => !base.contains(id)).length;
+
+    final unchanged = _replace
+        ? (!_changeStage &&
+              base.isNotEmpty &&
+              _picked.length == base.length &&
+              _picked.containsAll(base))
+        : newCount == 0; // Add: لازم تختار واحد جديد على الأقل
+
+    final stageMissing = _changeStage && _stage == null;
+    final shown = _replace ? n : newCount;
     final noun = _isTeamLeader
-        ? (n == 1 ? 'team leader' : 'team leaders')
-        : (n == 1 ? 'salesman' : 'salesmen');
+        ? (shown == 1 ? 'team leader' : 'team leaders')
+        : (shown == 1 ? 'salesman' : 'salesmen');
 
     return Column(
       key: const ValueKey('picker'),
@@ -831,15 +964,18 @@ class _AssignSheetState extends State<_AssignSheet> {
           ),
         ),
         const SizedBox(height: 12),
-        _Segmented(
-          labels: const ['Replace current', 'Add to current'],
-          index: _replace ? 0 : 1,
-          onChanged: (i) => setState(() {
-            _replace = i == 0;
-            _resetPicked();
-          }),
-        ),
-        const SizedBox(height: 12),
+        // غير الأدمن مفيش عنده Add to current، فمفيش داعي للتبديل
+        if (widget.allowAddToCurrent) ...[
+          _Segmented(
+            labels: const ['Replace current', 'Add to current'],
+            index: _replace ? 0 : 1,
+            onChanged: (i) => setState(() {
+              _replace = i == 0;
+              _resetPicked();
+            }),
+          ),
+          const SizedBox(height: 12),
+        ],
         Flexible(
           child: list.isEmpty
               ? Padding(
@@ -871,31 +1007,105 @@ class _AssignSheetState extends State<_AssignSheet> {
             onChanged: (v) => setState(() => _clearHistory = v),
           ),
           const SizedBox(height: 8),
-          _SwitchTile(
-            title: 'Reset creation date',
-            subtitle: 'Set a new creation date for the lead',
-            value: _resetCreation,
-            onChanged: (v) => setState(() => _resetCreation = v),
-          ),
-          if (_resetCreation) ...[
+          if (widget.allowResetCreationDate) ...[
             const SizedBox(height: 8),
-            _DateTile(
-              icon: Icons.event_available_rounded,
-              // التاريخ + الساعة والدقيقة
-              text:
-                  '${_fmtDate(_creationDate)}  ${TimeOfDay.fromDateTime(_creationDate).format(context)}',
-              onTap: _pickCreationDate,
+            _SwitchTile(
+              title: 'Reset creation date',
+              subtitle: 'Set a new creation date for the lead',
+              value: _resetCreation,
+              onChanged: (v) => setState(() => _resetCreation = v),
             ),
+            if (_resetCreation) ...[
+              const SizedBox(height: 8),
+              _DateTile(
+                icon: Icons.event_available_rounded,
+                text:
+                    '${_fmtDate(_creationDate)}  ${TimeOfDay.fromDateTime(_creationDate).format(context)}',
+                onTap: _pickCreationDate,
+              ),
+            ],
+          ],
+          // 7) جوه if (widget.showHistoryOptions) ...[ بعد بلوك Reset creation date
+          if (_stageOptions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _SwitchTile(
+              title: 'Change stage with assign',
+              subtitle: 'Optional, e.g. assign as Fresh',
+              value: _changeStage,
+              onChanged: (v) => setState(() {
+                _changeStage = v;
+                _stage = v ? (_stage ?? _freshStage) : null;
+              }),
+            ),
+            if (_changeStage) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final s in _stageOptions)
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _stage = s);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _stage?.id == s.id
+                              ? s.color.withOpacity(0.12)
+                              : p.tint,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: _stage?.id == s.id
+                                ? s.color
+                                : Colors.transparent,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: s.color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              s.name,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: p.text,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ],
         ],
         const SizedBox(height: 14),
         _PrimaryButton(
-          label: n == 0
+          label: shown == 0
               ? 'Select at least one'
+              : stageMissing
+              ? 'Select a stage'
               : unchanged
               ? 'No changes'
-              : 'Assign to $n $noun',
-          onPressed: (n == 0 || unchanged) ? null : _submit,
+              : 'Assign to $shown $noun${_changeStage ? ' + ${_stage!.name}' : ''}',
+          onPressed: (shown == 0 || unchanged || stageMissing) ? null : _submit,
         ),
       ],
     );

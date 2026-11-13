@@ -33,6 +33,7 @@ enum LeadFilterField {
   sales,
   assignedFrom,
   assignedBy,
+  assignedTo, // 👈 جديد (للتيم ليدر / المانجر)
   oldStage,
   unassigned,
   toDistribute,
@@ -52,11 +53,16 @@ class LeadFilterFields {
   LeadFilterFields._();
   static const Set<LeadFilterField> all = {...LeadFilterField.values};
 
+  // تيم ليدر / مانجر: Assigned to بدون Assigned by
+  static final Set<LeadFilterField> team = {...LeadFilterField.values}
+    ..remove(LeadFilterField.assignedBy);
+
   static final Set<LeadFilterField> withoutAssign = {...LeadFilterField.values}
     ..removeAll({
       LeadFilterField.sales,
       LeadFilterField.assignedFrom,
       LeadFilterField.assignedBy,
+      LeadFilterField.assignedTo, // 👈
       LeadFilterField.unassigned,
       LeadFilterField.toDistribute,
       LeadFilterField.assignDate,
@@ -471,6 +477,7 @@ class _LeadsFilterSheetState extends State<LeadsFilterSheet> {
       LeadFilterField.sales,
       LeadFilterField.assignedFrom,
       LeadFilterField.assignedBy,
+      LeadFilterField.assignedTo, // 👈
       LeadFilterField.assignDate,
       LeadFilterField.unassigned,
       LeadFilterField.toDistribute,
@@ -774,6 +781,14 @@ class _LeadsFilterSheetState extends State<LeadsFilterSheet> {
                             'Assigned from',
                             'assignedFrom',
                             f.assignedFrom,
+                          ),
+                        if (_has(LeadFilterField.assignedTo))
+                          _pick(
+                            p,
+                            Icons.call_received_rounded,
+                            'Assigned to',
+                            'assignedTo',
+                            f.assignedTo,
                           ),
                         if (_has(LeadFilterField.assignedBy))
                           _pick(

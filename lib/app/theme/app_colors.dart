@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 // import 'package:your_app/core/app_colors.dart';
 
 class AppColors {
-  static const Color navy = Color(0xFF0B1F33);
-  static const Color navyLight = Color(0xFF163A59);
+  // الكحلي بقى أسود. navyLight رمادي غامق جدًا عشان الـ gradients والكروت
+  // في الدارك مود لسه يبان فيها فرق بين الطبقات (لو الاتنين أسود صافي هتبقى مسطحة)
+  static const Color navy = Color(0xFF000000);
+  static const Color navyLight = Color(0xFF1C1C1E);
 
+  // الجولد زي ما هو
   static const Color gold = Color(0xFFC9A45C);
   static const Color goldLight = Color(0xFFE3C98A);
 

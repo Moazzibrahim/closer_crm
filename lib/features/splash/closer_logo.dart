@@ -17,14 +17,24 @@ class CloserMark extends StatelessWidget {
 }
 
 /// الأيقونة + اسم التطبيق (closer أبيض/كحلي + crm دهبي)
+// في الـ widget اللي فيه النص (غالبًا CloserLogo): ضيف parameter للخلفية
 class CloserLogo extends StatelessWidget {
   final double size;
   final bool wordmark;
-  const CloserLogo({super.key, this.size = 48, this.wordmark = true});
+  final Color background; // 👈 لون الخلفية اللي اللوجو فوقها
+  const CloserLogo({
+    super.key,
+    this.size = 48,
+    this.wordmark = true,
+    this.background = Colors.white, // الافتراضي: خلفية بيضا
+  });
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    // خلفية غامقة = closer أبيض، خلفية فاتحة = closer أسود
+    final onDark =
+        ThemeData.estimateBrightnessForColor(background) == Brightness.dark;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -36,7 +46,9 @@ class CloserLogo extends StatelessWidget {
               children: [
                 TextSpan(
                   text: 'closer',
-                  style: TextStyle(color: dark ? Colors.white : AppColors.navy),
+                  style: TextStyle(
+                    color: onDark ? Colors.white : AppColors.navy,
+                  ),
                 ),
                 const TextSpan(
                   text: 'crm',

@@ -23,10 +23,10 @@ String formatMoney(double v) {
 }
 
 BoxDecoration cardDecoration(bool isDark) => BoxDecoration(
-      color: isDark ? const Color(0xFF1E1E1E) : AppColors.white,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: isDark ? Colors.white10 : AppColors.border),
-    );
+  color: isDark ? const Color(0xFF1E1E1E) : AppColors.white,
+  borderRadius: BorderRadius.circular(18),
+  border: Border.all(color: isDark ? Colors.white10 : AppColors.border),
+);
 
 // ─────────────────────────────────────────────
 //  AppCard: الكارت الأساسي (container بالديكور الموحد)
@@ -108,14 +108,14 @@ class CardLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text(
-        text.toUpperCase(),
-        style: TextStyle(
-          fontSize: 10,
-          letterSpacing: 0.8,
-          fontWeight: FontWeight.w600,
-          color: labelColorOf(context),
-        ),
-      );
+    text.toUpperCase(),
+    style: TextStyle(
+      fontSize: 10,
+      letterSpacing: 0.8,
+      fontWeight: FontWeight.w600,
+      color: labelColorOf(context),
+    ),
+  );
 }
 
 // ─────────────────────────────────────────────
@@ -555,8 +555,8 @@ class BarTimeline extends StatelessWidget {
                                 color: pt.count > 0
                                     ? AppColors.gold
                                     : (isDark
-                                        ? Colors.white10
-                                        : AppColors.border),
+                                          ? Colors.white10
+                                          : AppColors.border),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                             ),
@@ -816,6 +816,9 @@ class MiniStat extends StatelessWidget {
           Expanded(
             child: Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              softWrap: false,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,

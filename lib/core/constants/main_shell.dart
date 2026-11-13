@@ -14,6 +14,7 @@ import 'package:flutter_application_1/features/leads/providers/admin_leads_filte
 import 'package:flutter_application_1/features/sales/presentation/sales_dashboard_screen.dart';
 import 'package:flutter_application_1/features/sales/presentation/sales_leads_screen.dart';
 import 'package:flutter_application_1/features/sales/provider/sales_dashboard_provider.dart';
+import 'package:flutter_application_1/features/team%20leader/presentation/screens/teamleader_leads_screen.dart';
 import 'package:provider/provider.dart';
 
 // ─────────────────────────────────────────────
@@ -154,25 +155,27 @@ RoleNavConfig _baseNavConfig(UserRole role) {
             'Home',
             Icons.home_outlined,
             Icons.home_rounded,
-            (_) => _page('Team Leader Home', Icons.home_rounded),
+            // refreshOnEnter = true → provider جديد + load جديد كل دخول
+            (ctx) => ChangeNotifierProvider(
+              create: (_) => SalesDashboardProvider(
+                ctx.read<AuthProvider>().userId ?? '',
+                isTeam: true,
+              )..load(),
+              child: const SalesDashboardScreen(),
+            ),
           ),
-          _tab(
-            'Leads',
-            Icons.groups_outlined,
-            Icons.groups_rounded,
-            (_) => _page('Leads', Icons.groups_rounded),
-          ),
-          _tab(
-            'My Team',
-            Icons.support_agent_outlined,
-            Icons.support_agent_rounded,
-            (_) => _page('My Team', Icons.support_agent_rounded),
-          ),
+          _tab('Leads', Icons.contacts_outlined, Icons.contacts_rounded, (ctx) {
+            final uid = ctx.read<AuthProvider>().userId ?? '';
+            return TeamLeaderLeadsScreen(userId: uid);
+          }),
+          _aiChatTab,
           _profileTab((_) => const MyProfileScreen()),
         ],
       );
 
     case UserRole.sales:
+      // نفس تابات السيلز
+
       return RoleNavConfig(
         tabs: [
           _tab(

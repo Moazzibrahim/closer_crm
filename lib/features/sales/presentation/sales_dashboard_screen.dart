@@ -2,6 +2,8 @@
 // نفس ديزاين داشبورد الأدمن، من غير فلتر السيلز (الداتا دايماً بتاعة اليوزر الحالي).
 // ignore_for_file: unnecessary_underscores, deprecated_member_use
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/main_shell.dart';
@@ -14,6 +16,8 @@ import 'package:flutter_application_1/features/sales/model/sales_dashboard_model
 import 'package:flutter_application_1/features/sales/presentation/sales_leads_screen.dart';
 import 'package:flutter_application_1/features/sales/provider/sales_dashboard_provider.dart';
 import 'package:flutter_application_1/features/splash/closer_logo.dart';
+import 'package:flutter_application_1/features/team%20leader/data/team_members_model.dart';
+import 'package:flutter_application_1/features/team%20leader/presentation/screens/teamleader_leads_screen.dart';
 import 'package:provider/provider.dart';
 
 // ─────────────────────────────────────────────
@@ -84,20 +88,21 @@ IconData _stageIcon(String name) {
 // ─────────────────────────────────────────────
 //  Entry: بيعمل الـ provider بـ id اليوزر الحالي
 // ─────────────────────────────────────────────
-class SalesDashboardScreen extends StatelessWidget {
+class SalesDashboardScreen extends StatefulWidget {
   const SalesDashboardScreen({super.key});
+  @override
+  State<SalesDashboardScreen> createState() => _SalesDashboardScreenState();
+}
+
+class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    NotificationBadge.start();
+  }
 
   @override
-  Widget build(BuildContext context) {
-    final salesId = context.read<AuthProvider>().userId ?? '';
-    return ChangeNotifierProvider(
-      create: (_) {
-        NotificationBadge.start();
-        return SalesDashboardProvider(salesId)..load();
-      },
-      child: const _DashboardView(),
-    );
-  }
+  Widget build(BuildContext context) => const _DashboardView();
 }
 
 class _DashboardView extends StatelessWidget {
@@ -127,7 +132,14 @@ class _DashboardView extends StatelessWidget {
           ),
           slivers: [
             SliverToBoxAdapter(child: _Header(data: data)),
-            const SliverToBoxAdapter(child: SectionTitle('My Lead Stages')),
+
+            if (p.isTeam) const SliverToBoxAdapter(child: _TeamSection()),
+
+            SliverToBoxAdapter(
+              child: SectionTitle(
+                p.isTeam ? 'Team Lead Stages' : 'My Lead Stages',
+              ),
+            ),
 
             // فلتر التاريخ بس (مفيش فلتر سيلز)
             const SliverToBoxAdapter(
@@ -233,7 +245,7 @@ class _Header extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const CloserLogo(size: 52),
+                      const CloserLogo(size: 52, background: Colors.black),
                       const Spacer(),
                       ValueListenableBuilder<int>(
                         valueListenable: NotificationBadge.count,
@@ -465,16 +477,19 @@ class _StageCard extends StatelessWidget {
   const _StageCard({required this.stage});
 
   void _open(BuildContext context) {
+    // _StageCard._open
     final p = context.read<SalesDashboardProvider>();
     final r = p.range;
     context.read<ShellProvider>().openLeads(
       LeadsFilters(
         stages: [stage.id],
-        sales: [p.salesId],
+        sales: p.isTeam ? const [] : [p.salesId],
         createdFrom: r == null ? null : _ymd(r.start),
         createdTo: r == null ? null : _ymd(r.end),
       ),
-      builder: (preset) => SalesLeadsScreen(preset: preset), // 👈
+      builder: (preset) => p.isTeam
+          ? TeamLeaderLeadsScreen(userId: p.salesId, extraPreset: preset)
+          : SalesLeadsScreen(preset: preset),
     );
   }
 
@@ -537,16 +552,18 @@ void _openFollowUpLeads(
   String? to,
   String? stale,
 }) {
-  final salesId = context.read<SalesDashboardProvider>().salesId;
+  final p = context.read<SalesDashboardProvider>();
   context.read<ShellProvider>().openLeads(
     LeadsFilters(
       lateFollowUp: late,
       followUpFrom: from,
       followUpTo: to,
       stale: stale,
-      sales: [salesId],
+      sales: p.isTeam ? const [] : [p.salesId],
     ),
-    builder: (preset) => SalesLeadsScreen(preset: preset), // 👈
+    builder: (preset) => p.isTeam
+        ? TeamLeaderLeadsScreen(userId: p.salesId, extraPreset: preset)
+        : SalesLeadsScreen(preset: preset),
   );
 }
 
@@ -733,10 +750,18 @@ class _DealsSection extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            BarTimeline(
+            // BarTimeline(
+            //   title: 'Timeline',
+            //   emptyText: 'No deals in this period',
+            //   points: d.timeline,
+            // ),
+            _DealsChart(
               title: 'Timeline',
               emptyText: 'No deals in this period',
-              points: d.timeline,
+              points: [
+                for (final t in d.timeline)
+                  _ChartPoint(t.label, t.value, t.count),
+              ],
             ),
           ],
         ],
@@ -808,4 +833,557 @@ class _DealsFilters extends StatelessWidget {
       ],
     );
   }
+}
+
+// ─────────────────────────────────────────────
+//  Team section (Team Leader فقط)
+// ─────────────────────────────────────────────
+void _openMemberLeads(BuildContext context, String memberId) {
+  final p = context.read<SalesDashboardProvider>();
+  context.read<ShellProvider>().openLeads(
+    LeadsFilters(sales: [memberId]),
+    builder: (preset) =>
+        TeamLeaderLeadsScreen(userId: p.salesId, extraPreset: preset),
+  );
+}
+
+String _initials(String name) {
+  final p = name
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((e) => e.isNotEmpty)
+      .toList();
+  if (p.isEmpty) return '?';
+  return (p.first[0] + (p.length > 1 ? p[1][0] : '')).toUpperCase();
+}
+
+class _TeamSection extends StatelessWidget {
+  const _TeamSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.watch<SalesDashboardProvider>();
+    final t = p.team;
+
+    if (t == null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: p.teamError != null
+            ? ErrorBox(message: p.teamError!, onRetry: p.loadTeam)
+            : const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final me = t.me(p.salesId);
+    final others = t.others(p.salesId);
+    final othersLeads = others.fold<int>(0, (s, m) => s + m.leads);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (p.teamError != null)
+            ErrorBox(message: p.teamError!, onRetry: p.loadTeam),
+
+          // ── My dashboard ──
+          const SectionTitle('My Dashboard'),
+          if (me != null)
+            _MyOwnCard(m: me, onTap: () => _openMemberLeads(context, me.id)),
+
+          // ── My team ──
+          const SectionTitle('My Team'),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 10),
+            child: Text(
+              '${others.length} members · $othersLeads leads',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: labelColorOf(context),
+              ),
+            ),
+          ),
+          if (others.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: Text(
+                  'No team members yet',
+                  style: TextStyle(color: labelColorOf(context)),
+                ),
+              ),
+            )
+          else
+            for (final m in others) ...[
+              _MemberTile(m: m, onTap: () => _openMemberLeads(context, m.id)),
+              const SizedBox(height: 10),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MyOwnCard extends StatelessWidget {
+  final TeamMember m;
+  final VoidCallback onTap;
+  const _MyOwnCard({required this.m, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = isDarkOf(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : AppColors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isDark ? Colors.white10 : AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: AppColors.navy.withOpacity(isDark ? 0.5 : 0.08),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        Icons.person_rounded,
+                        color: accentOf(context),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'MY OWN LEADS',
+                            style: TextStyle(
+                              fontSize: 10,
+                              letterSpacing: 0.8,
+                              fontWeight: FontWeight.w600,
+                              color: labelColorOf(context),
+                            ),
+                          ),
+                          Text(
+                            '${m.leads}',
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              height: 1.15,
+                              color: valueColorOf(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: labelColorOf(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: MiniStat(
+                        icon: Icons.schedule_rounded,
+                        label: 'Late',
+                        value: '${m.late}',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: MiniStat(
+                        icon: Icons.today_rounded,
+                        label: 'Today',
+                        value: '${m.today}',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: MiniStat(
+                        icon: Icons.fiber_new_rounded,
+                        label: 'Fresh',
+                        value: '${m.noStage}',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MemberTile extends StatelessWidget {
+  final TeamMember m;
+  final VoidCallback onTap;
+  const _MemberTile({required this.m, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = isDarkOf(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? Colors.white10 : AppColors.border),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.navy, AppColors.navyLight],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Text(
+                    _initials(m.name),
+                    style: const TextStyle(
+                      color: AppColors.gold,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        m.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                          color: valueColorOf(context),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          if (m.late > 0) _Pill('${m.late} late', _kRed),
+                          if (m.today > 0)
+                            _Pill('${m.today} today', AppColors.gold),
+                          if (m.noStage > 0)
+                            _Pill('${m.noStage} fresh', _kBlue),
+                          if (!m.isActive) _Pill('inactive', Colors.grey),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  children: [
+                    Text(
+                      '${m.leads}',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: valueColorOf(context),
+                      ),
+                    ),
+                    Text(
+                      'leads',
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: labelColorOf(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _Pill(this.text, this.color);
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.14),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Text(
+      text,
+      style: TextStyle(
+        fontSize: 10.5,
+        fontWeight: FontWeight.w700,
+        color: color,
+      ),
+    ),
+  );
+}
+
+class _ChartPoint {
+  final String label;
+  final double value;
+  final int count;
+  const _ChartPoint(this.label, this.value, this.count);
+}
+
+String _compact(double v) {
+  final a = v.abs();
+  String s;
+  if (a >= 1e9) {
+    s = '${(v / 1e9).toStringAsFixed(1)}B';
+  } else if (a >= 1e6) {
+    s = '${(v / 1e6).toStringAsFixed(1)}M';
+  } else if (a >= 1e3) {
+    s = '${(v / 1e3).toStringAsFixed(1)}K';
+  } else {
+    s = v.toStringAsFixed(v == v.roundToDouble() ? 0 : 1);
+  }
+  return s.replaceFirst('.0', '');
+}
+
+class _DealsChart extends StatelessWidget {
+  final String title, emptyText;
+  final List<_ChartPoint> points;
+  const _DealsChart({
+    required this.title,
+    required this.emptyText,
+    required this.points,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = isDarkOf(context);
+    final hasData = points.any((p) => p.value > 0 || p.count > 0);
+    final useValue = points.any((p) => p.value > 0);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : AppColors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: isDark ? Colors.white10 : AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: AppColors.gold,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: valueColorOf(context),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (!hasData)
+            SizedBox(
+              height: 120,
+              child: Center(
+                child: Text(
+                  emptyText,
+                  style: TextStyle(color: labelColorOf(context)),
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 210,
+              child: LayoutBuilder(
+                builder: (_, c) {
+                  final w = math.max(c.maxWidth, points.length * 56.0);
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: CustomPaint(
+                      size: Size(w, 210),
+                      painter: _BarsPainter(
+                        points: points,
+                        useValue: useValue,
+                        gradient: isDark
+                            ? const [AppColors.goldLight, AppColors.gold]
+                            : const [AppColors.navyLight, AppColors.navy],
+                        grid: isDark ? Colors.white12 : AppColors.border,
+                        text: isDark ? Colors.white : AppColors.textPrimary,
+                        sub: isDark ? Colors.white54 : AppColors.textSecondary,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BarsPainter extends CustomPainter {
+  final List<_ChartPoint> points;
+  final List<Color> gradient;
+  final Color grid, text, sub;
+  final bool useValue;
+
+  const _BarsPainter({
+    required this.points,
+    required this.useValue,
+    required this.gradient,
+    required this.grid,
+    required this.text,
+    required this.sub,
+  });
+  double _v(_ChartPoint p) => useValue ? p.value : p.count.toDouble();
+  void _text(
+    Canvas canvas,
+    String s,
+    Offset at,
+    TextStyle style, {
+    TextAlign align = TextAlign.center,
+    double maxWidth = 60,
+  }) {
+    final tp = TextPainter(
+      text: TextSpan(text: s, style: style),
+      textDirection: TextDirection.ltr,
+      textAlign: align,
+      maxLines: 1,
+      ellipsis: '…',
+    )..layout(maxWidth: maxWidth);
+    // at = مركز النص أفقياً، وأعلاه رأسياً
+    tp.paint(canvas, Offset(at.dx - tp.width / 2, at.dy));
+  }
+
+  double _niceStep(double x) {
+    final mag = math.pow(10, (math.log(x) / math.ln10).floor()).toDouble();
+    final n = x / mag;
+    final nice = n <= 1 ? 1 : (n <= 2 ? 2 : (n <= 5 ? 5 : 10));
+    return nice * mag;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const left = 46.0, top = 22.0, bottom = 28.0;
+    final h = size.height - top - bottom;
+    final w = size.width - left;
+
+    final maxV = points.fold<double>(0, (m, p) => math.max(m, _v(p)));
+    final step = _niceStep((maxV <= 0 ? 1 : maxV) / 4);
+    final lines = math.max(1, (maxV / step).ceil());
+    final axisMax = step * lines;
+
+    final gridPaint = Paint()
+      ..color = grid
+      ..strokeWidth = 1;
+    final subStyle = TextStyle(fontSize: 10, color: sub);
+
+    // خطوط الشبكة + القيم على المحور
+    for (var i = 0; i <= lines; i++) {
+      final y = top + h - h * i / lines;
+      canvas.drawLine(Offset(left, y), Offset(size.width, y), gridPaint);
+      final tp = TextPainter(
+        text: TextSpan(text: _compact(step * i), style: subStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(left - 8 - tp.width, y - tp.height / 2));
+    }
+
+    // الأعمدة
+    final slot = w / points.length;
+    final barW = math.min(30.0, slot * 0.55);
+
+    for (var i = 0; i < points.length; i++) {
+      final p = points[i];
+      final cx = left + slot * (i + 0.5);
+      final v = _v(p);
+      if (v > 0) {
+        final bh = math.max(3.0, h * v / axisMax);
+        final rect = Rect.fromLTWH(cx - barW / 2, top + h - bh, barW, bh);
+        final paint = Paint()
+          ..shader = LinearGradient(
+            colors: gradient,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ).createShader(rect);
+        canvas.drawRRect(
+          RRect.fromRectAndCorners(
+            rect,
+            topLeft: const Radius.circular(8),
+            topRight: const Radius.circular(8),
+          ),
+          paint,
+        );
+        _text(
+          canvas,
+          useValue
+              ? '${_compact(p.value)}${p.count > 0 ? ' · ${p.count}' : ''}'
+              : '${p.count}',
+          Offset(cx, rect.top - 15),
+          TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: text),
+          maxWidth: slot,
+        );
+      }
+
+      _text(canvas, p.label, Offset(cx, top + h + 8), subStyle, maxWidth: slot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _BarsPainter old) =>
+      old.points != points || old.text != text || old.grid != grid;
 }

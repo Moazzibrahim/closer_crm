@@ -304,29 +304,33 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
         _cfg.allowHistoryOptions &&
         (_raw?['permissions'] as Map?)?['canClearHistory'] == true;
 
+    if (canHistory && _stages.isEmpty) await _loadStages();
+
     final r = await showAssignSheet(
       context,
       count: 1,
       showHistoryOptions: canHistory,
-      currentIds: current, // 👈 علامة الصح على الحاليين
+      currentIds: current,
+      stages: canHistory
+          ? [
+              for (final s in _stages)
+                StageOpt(s.id, s.name, s.color, isDeal: s.isDeal),
+            ]
+          : const [],
     );
     if (r == null || !mounted) return;
-
     try {
-      const note = 'Lead reassigned';
-      // الـ history/التاريخ الأول، والـ assign آخر حاجة
-      if (r.clearHistory) await _leads.clearHistory(lead.id, notes: note);
-      if (r.resetCreationDate) {
-        await _leads.resetCreationDate(
-          lead.id,
-          r.creationDate ?? DateTime.now(),
-          notes: note,
-        );
-      }
-
-      // الـ lead بدون سيلز → add (POST) دايماً، غير كده حسب اختيار اليوزر
-      final mode = (r.replace && current.isNotEmpty) ? 'replace' : 'add';
-      await _leads.bulkAssign([lead.id], r.salesIds, mode: mode);
+      await _leads.bulkAssignActions(
+        [lead.id],
+        salesIds: r.salesIds,
+        mode: (r.replace && current.isNotEmpty) ? 'replace' : 'add',
+        assignedAs: r.target == AssignTarget.teamLeader
+            ? 'teamLeader'
+            : 'sales',
+        stageId: r.stage?.id,
+        resetDate: r.resetCreationDate ? r.creationDate : null,
+        clearHistoryNotes: r.clearHistory ? 'Lead reassigned' : null,
+      );
 
       _changed = true;
       _snack('Assigned to ${r.names}');

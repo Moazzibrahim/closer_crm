@@ -198,7 +198,7 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'CRM Real Estate',
+        title: 'Closer CRM ',
         theme: _theme,
         home: const SplashScreen(),
       ),

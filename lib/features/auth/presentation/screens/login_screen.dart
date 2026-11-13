@@ -143,12 +143,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       /// TOP LOGO (الأيقونة + اسم التطبيق closercrm)
                       // CloserLogo بيرسم الأيقونة + كلمة closer (كحلي) + crm (دهبي)
-                      const CloserLogo(size: 52),
+                      const CloserLogo(size: 52, background: Colors.white),
                     ],
                   ),
-
                   const SizedBox(height: 65),
-
                   /// TITLE
                   const Text(
                     'Welcome back',
@@ -158,9 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-
                   const SizedBox(height: 10),
-
                   const Text(
                     'Sign in to manage your real estate business.',
                     style: TextStyle(
@@ -169,9 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       height: 1.5,
                     ),
                   ),
-
                   const SizedBox(height: 38),
-
                   /// FORM
                   Form(
                     key: _formKey,
@@ -186,9 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-
                         const SizedBox(height: 9),
-
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,

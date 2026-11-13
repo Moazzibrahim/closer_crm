@@ -13,6 +13,7 @@ import 'package:flutter_application_1/features/crud/data/projects_model.dart';
 import 'package:flutter_application_1/features/crud/data/stages_model.dart';
 import 'package:flutter_application_1/features/crud/data/users_model.dart';
 import 'package:flutter_application_1/features/crud/providers/crud_service.dart';
+import 'package:flutter_application_1/features/crud/providers/users_lookup_service.dart';
 // ⚠️ عدّل المسار ده لمكان leads_service.dart عندك
 import 'package:flutter_application_1/features/leads/providers/leads_service.dart';
 import 'package:country_picker/country_picker.dart';
@@ -149,6 +150,7 @@ class _CreateLeadScreenState extends State<CreateLeadScreen> {
           CrudService(path).getAll(params: {'limit': 200});
 
       final needUsers = widget.fixedSalesId == null;
+      final isTL = widget.teamLeaderId != null;
 
       final r = await Future.wait<Map<String, dynamic>>([
         get(Endpoints.projects),
@@ -156,7 +158,7 @@ class _CreateLeadScreenState extends State<CreateLeadScreen> {
         get(Endpoints.channels),
         get(Endpoints.communicationWays),
         get(Endpoints.stages),
-        if (needUsers) AuthService().getAllUsers(),
+        if (needUsers && !isTL) AuthService().getAllUsers(),
       ]);
 
       int byLabel(_Opt a, _Opt b) =>
@@ -195,34 +197,54 @@ class _CreateLeadScreenState extends State<CreateLeadScreen> {
           .toList();
       // الـ Sales: Sales + Team Leader بس (الـ active منهم)
       if (needUsers) {
-        final tlId = widget.teamLeaderId;
-        _salesOpts =
-            (r[5]['data'] as List? ?? [])
-                .whereType<Map>()
-                .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))
-                .where((u) {
-                  if (u.id == null || !u.active) return false;
-                  if (u.role != 'Sales' && u.role != 'Team Leader') {
-                    return false;
-                  }
-                  // التيم ليدر: نفسه + اللي تحته بس
-                  if (tlId != null) {
-                    return u.id == tlId || u.teamLeaderId == tlId;
-                  }
-                  return true;
-                })
+        if (isTL) {
+          // تيم ليدر: نفسه + فريقه بس (من الـ endpoint المسموح له)
+          final tlId = widget.teamLeaderId!;
+          final team = await UsersLookupService().myTeam(
+            isManager: false,
+            userId: tlId,
+          );
+          _salesOpts = [
+            // التيم ليدر نفسه
+            _Opt(tlId, 'Me  •  Team Leader'),
+            ...team
+                .where((u) => u.role == 'Sales' && u.id != tlId)
                 .map(
                   (u) => _Opt(
-                    u.id!,
-                    u.fullName.isEmpty
-                        ? (u.email ?? 'Unnamed')
-                        : '${u.fullName}  •  ${u.role}',
+                    u.id,
+                    u.name.isEmpty
+                        ? (u.email.isEmpty ? 'Unnamed' : u.email)
+                        : '${u.name}  •  ${u.role}',
                   ),
-                )
-                .toList()
-              ..sort(byLabel);
+                ),
+          ]..sort(byLabel);
+        } else {
+          // أدمن / مانجر: كل الـ Sales + Team Leaders (زي ما كان)
+          _salesOpts =
+              (r[5]['data'] as List? ?? [])
+                  .whereType<Map>()
+                  .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))
+                  .where(
+                    (u) =>
+                        u.id != null &&
+                        u.active &&
+                        (u.role == 'Sales' || u.role == 'Team Leader'),
+                  )
+                  .map(
+                    (u) => _Opt(
+                      u.id!,
+                      u.fullName.isEmpty
+                          ? (u.email ?? 'Unnamed')
+                          : '${u.fullName}  •  ${u.role}',
+                    ),
+                  )
+                  .toList()
+                ..sort(byLabel);
+        }
       }
     } catch (e) {
+      debugPrint('LOOKUPS ERROR: $e');
+
       _error = e.toString();
     }
     if (mounted) setState(() => _loading = false);

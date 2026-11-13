@@ -65,6 +65,11 @@ class Endpoints {
   static String leadDeals(String id) => '/Leads/$id/deals';
   static String leadDeal(String id, String dealId) =>
       '/Leads/$id/deals/$dealId';
+  // Stage Reshuffle Rules
+  static const reshuffleRules = '/stage-reshuffle-rules';
+  static String reshuffleRule(String id) => '/stage-reshuffle-rules/$id';
+  static String reshuffleToggle(String id) =>
+      '/stage-reshuffle-rules/$id/toggle';
 
   // Comments
   static String comments(String leadId) => '/Leads/$leadId/comments';

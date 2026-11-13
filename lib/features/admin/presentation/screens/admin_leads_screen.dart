@@ -10,6 +10,7 @@ import 'package:flutter_application_1/core/widgets/lead_card_widget.dart';
 import 'package:flutter_application_1/features/comments/presentation/widgets/lead_comment_sheet.dart';
 import 'package:flutter_application_1/features/crud/data/stages_model.dart';
 import 'package:flutter_application_1/features/crud/providers/crud_service.dart';
+import 'package:flutter_application_1/features/crud/providers/users_lookup_service.dart';
 import 'package:flutter_application_1/features/leads/presentation/screens/lead_details_screen_master.dart';
 import 'package:flutter_application_1/features/leads/presentation/widgets/lead_details_widget.dart';
 import 'package:flutter_application_1/features/leads/presentation/widgets/lead_filter_sheet.dart';
@@ -24,6 +25,11 @@ class LeadsScreen extends StatefulWidget {
   final LeadDetailsConfig detailsConfig; // صلاحيات صفحة التفاصيل
   final bool canAssign, canChangeStage, canDelete;
   final String defaultSort;
+  final bool allowAssignTeamLeader;
+  final String? teamOwnerId;
+  final bool teamOwnerIsManager;
+  final bool canResetCreationDate;
+  final String? teamOwnerName;
 
   const LeadsScreen({
     super.key,
@@ -34,6 +40,11 @@ class LeadsScreen extends StatefulWidget {
     this.canChangeStage = true,
     this.canDelete = true, // delete + trash + restore
     this.defaultSort = '-createdAt',
+    this.allowAssignTeamLeader = true,
+    this.teamOwnerId,
+    this.teamOwnerIsManager = false,
+    this.canResetCreationDate = true,
+    this.teamOwnerName,
   });
 
   @override
@@ -118,7 +129,43 @@ class LeadsScreenState extends State<LeadsScreen> {
       name.toLowerCase().replaceAll(RegExp(r'[\s_\-]'), '') == 'donedeal';
 
   Future<void> _loadFilterOptions() async {
-    final o = await LeadFilterOptions.load(includeUsers: !widget.myLeads);
+    // لو فيه teamOwnerId (تيم ليدر / مانجر) مش هنجيب كل اليوزرز
+    final scoped = widget.teamOwnerId != null && !widget.myLeads;
+    final o = await LeadFilterOptions.load(
+      includeUsers: !widget.myLeads && !scoped,
+    );
+
+    if (scoped) {
+      try {
+        final team = await UsersLookupService().myTeam(
+          isManager: widget.teamOwnerIsManager,
+          userId: widget.teamOwnerId!,
+        );
+        String nameOf(LookupUser u) =>
+            u.name.isEmpty ? (u.email.isEmpty ? 'Unnamed' : u.email) : u.name;
+
+        // نفس قايمة الـ assign sheet: التيم ليدر نفسه + السيلز بتوعه
+        final mine = <Opt>[
+          if (!widget.teamOwnerIsManager)
+            Opt(
+              widget.teamOwnerId!,
+              (widget.teamOwnerName ?? '').trim().isEmpty
+                  ? 'Me'
+                  : '${widget.teamOwnerName} (me)',
+            ),
+          ...team
+              .where((u) => u.role == 'Sales' && u.id != widget.teamOwnerId)
+              .map((u) => Opt(u.id, nameOf(u))),
+        ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+        o['sales'] = mine;
+        o['assignedFrom'] = mine; // مش هيشوف يوزرز برا فريقه
+        o['assignedTo'] = mine; // 👈 نفس السيلز بتوع from
+      } catch (e) {
+        debugPrint('filter: failed to load team: $e');
+      }
+    }
+
     if (mounted) setState(() => _opts = o);
   }
 
@@ -161,7 +208,10 @@ class LeadsScreenState extends State<LeadsScreen> {
       opts: _opts,
       fields: widget.myLeads
           ? LeadFilterFields.withoutAssign
-          : LeadFilterFields.all,
+          : widget.teamOwnerId != null
+          ? LeadFilterFields
+                .team // 👈 تيم ليدر / مانجر
+          : LeadFilterFields.all, // 👈 أدمن / ماركتر
     );
     if (r == null) return;
     setState(_selected.clear);
@@ -172,6 +222,18 @@ class LeadsScreenState extends State<LeadsScreen> {
     final f = widget.preset?.copy() ?? LeadsFilters();
     f.sort = widget.defaultSort;
     f.isActive = true;
+
+    // My Leads: الـ endpoint أصلًا بيفلتر باليوزر، فنشيل فلاتر الـ assignment
+    // من الـ preset عشان ما تتحسبش كفلتر نشط (النقطة + عداد Apply)
+    if (widget.myLeads) {
+      f.sales.clear();
+      f.assignedFrom.clear();
+      f.assignedBy.clear();
+      f.assignedTo.clear(); // 👈
+      f.unassigned = false;
+      f.toDistribute = false;
+      f.assignDateFrom = f.assignDateTo = null;
+    }
     return f;
   }
 
@@ -242,77 +304,142 @@ class LeadsScreenState extends State<LeadsScreen> {
   Future<void> _onAssign() async {
     if (!widget.canAssign) return;
 
-    // lead واحد بس: نجيب السيلز الحاليين من الـ API عشان تتعلّم بصح
+    // lead واحد بس: نجيب السيلز الحاليين (id + اسم) من الـ API
     var current = <String>[];
+    final names = <String, String>{};
     if (_selected.length == 1) {
       try {
         final raw = ldUnwrapLead(await _svc.getLead(_selected.first));
+        // اطبع كل الـ keys + أي حاجة اسمها فيه sales أو assign
+        debugPrint('assign ALL keys: ${raw.keys.toList().join(', ')}');
+        raw.forEach((k, v) {
+          final key = k.toString().toLowerCase();
+          if (key.contains('sale') ||
+              key.contains('assign') ||
+              key.contains('owner')) {
+            debugPrint('assign [$k] (${v.runtimeType}) = $v');
+          }
+        });
         String? idOf(dynamic u) =>
             (u is Map ? (u['_id'] ?? u['id']) : u)?.toString();
-        final ids = <String>{};
-        for (final s in (raw['sales'] as List? ?? [])) {
-          final id = idOf(s);
-          if (id != null && id.isNotEmpty) ids.add(id);
+        final seen = <String>{};
+        void add(dynamic u) {
+          // الشكل الجديد: { user: {...}, isCurrent, assignedAs } -> نفك الـ wrapper
+          // وجوه الشكل ده نتجاهل اللي isCurrent == false
+          if (u is Map && u['user'] != null) {
+            if (u['isCurrent'] == false) return;
+            u = u['user'];
+          }
+          final id = idOf(u);
+          if (id == null || id.isEmpty) return;
+          seen.add(id);
+          if (u is Map) {
+            final n =
+                (u['fullName'] ??
+                        u['name'] ??
+                        '${u['firstName'] ?? ''} ${u['lastName'] ?? ''}')
+                    .toString()
+                    .trim();
+            if (n.isNotEmpty) names[id] = n;
+          }
         }
+
+        // sales ممكن ييجي List أو عنصر واحد (Map/String) حسب الرول
+        final s = raw['sales'];
+        if (s is List) {
+          s.forEach(add);
+        } else if (s != null) {
+          add(s);
+        }
+
         for (final a in (raw['assignedBy'] as List? ?? []).whereType<Map>()) {
-          if (a['isCurrent'] != true) continue;
-          final id = idOf(a['sales']);
-          if (id != null && id.isNotEmpty) ids.add(id);
+          if (a['isCurrent'] == true) add(a['sales']);
         }
-        current = ids.toList();
-      } catch (_) {}
+        current = seen.toList();
+      } catch (e) {
+        debugPrint('assign: failed to load current sales: $e');
+      }
     }
+    debugPrint('assign: current=$current names=$names');
     if (!mounted) return;
 
     final result = await showAssignSheet(
       context,
       count: _selected.length,
       showHistoryOptions: !widget.myLeads,
-      currentIds: current, // 👈
+      currentIds: current,
+      currentNames: names, // 👈
+      stages: widget.myLeads
+          ? const []
+          : [
+              for (final s in _stages)
+                StageOpt(s.id, s.name, s.color, isDeal: s.isDeal),
+            ],
+      allowTeamLeader: widget.allowAssignTeamLeader,
+      allowResetCreationDate: widget.canResetCreationDate,
+      teamOwnerId: widget.teamOwnerId,
+      teamOwnerName: widget.teamOwnerName,
+      teamOwnerIsManager: widget.teamOwnerIsManager,
+      allowAddToCurrent: widget.teamOwnerId == null,
     );
     if (result == null || !mounted) return;
     // ... باقي الدالة زي ما هو
 
-    await _run(() async {
-      final ids = _selected.toList();
+    await _run(
+      () => _svc.bulkAssignActions(
+        _selected.toList(),
+        salesIds: result.salesIds,
+        mode: result.replace ? 'replace' : 'add',
+        assignedAs: result.target == AssignTarget.teamLeader
+            ? 'teamLeader' // ⚠️ اتأكد من القيمة الصح في الباك
+            : 'sales',
+        stageId: result.stage?.id,
+        resetDate: result.resetCreationDate ? result.creationDate : null,
+        clearHistoryNotes: result.clearHistory ? _historyNote : null,
+      ),
+      'Updated assignment for $_countLabel',
+    );
 
-      // الـ history/التاريخ الأول، والـ assign آخر حاجة
-      if (result.clearHistory || result.resetCreationDate) {
-        await Future.wait(
-          ids.map((id) async {
-            if (result.clearHistory) {
-              await _svc.clearHistory(id, notes: _historyNote);
-            }
-            if (result.resetCreationDate) {
-              await _svc.resetCreationDate(
-                id,
-                result.creationDate ?? DateTime.now(),
-                notes: _historyNote,
-              );
-            }
-          }),
-        );
-      }
+    // await _run(() async {
+    //   final ids = _selected.toList();
 
-      // replace (PATCH) بس للـ leads اللي عندها سيلز، الباقي add (POST)
-      final replaceIds = <String>[];
-      final addIds = <String>[];
-      for (final id in ids) {
-        final lead = _c.items.firstWhere((e) => e.id == id);
-        if (result.replace && lead.salesman.isNotEmpty) {
-          replaceIds.add(id);
-        } else {
-          addIds.add(id);
-        }
-      }
+    //   // الـ history/التاريخ الأول، والـ assign آخر حاجة
+    //   if (result.clearHistory || result.resetCreationDate) {
+    //     await Future.wait(
+    //       ids.map((id) async {
+    //         if (result.clearHistory) {
+    //           await _svc.clearHistory(id, notes: _historyNote);
+    //         }
+    //         if (result.resetCreationDate) {
+    //           await _svc.resetCreationDate(
+    //             id,
+    //             result.creationDate ?? DateTime.now(),
+    //             notes: _historyNote,
+    //           );
+    //         }
+    //       }),
+    //     );
+    //   }
 
-      if (replaceIds.isNotEmpty) {
-        await _svc.bulkAssign(replaceIds, result.salesIds, mode: 'replace');
-      }
-      if (addIds.isNotEmpty) {
-        await _svc.bulkAssign(addIds, result.salesIds, mode: 'add');
-      }
-    }, 'Updated assignment for $_countLabel');
+    //   // replace (PATCH) بس للـ leads اللي عندها سيلز، الباقي add (POST)
+    //   final replaceIds = <String>[];
+    //   final addIds = <String>[];
+    //   for (final id in ids) {
+    //     final lead = _c.items.firstWhere((e) => e.id == id);
+    //     if (result.replace && lead.salesman.isNotEmpty) {
+    //       replaceIds.add(id);
+    //     } else {
+    //       addIds.add(id);
+    //     }
+    //   }
+
+    //   if (replaceIds.isNotEmpty) {
+    //     await _svc.bulkAssign(replaceIds, result.salesIds, mode: 'replace');
+    //   }
+    //   if (addIds.isNotEmpty) {
+    //     await _svc.bulkAssign(addIds, result.salesIds, mode: 'add');
+    //   }
+    // }, 'Updated assignment for $_countLabel');
   }
 
   Future<void> _onChangeStage() async {

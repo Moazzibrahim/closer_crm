@@ -21,6 +21,7 @@ class LeadsFilters {
       developers,
       sales,
       assignedFrom,
+      assignedTo, // 👈
       assignedBy,
       countryCodes,
       campaigns,
@@ -52,6 +53,7 @@ class LeadsFilters {
     List<String>? developers,
     List<String>? sales,
     List<String>? assignedFrom,
+    List<String>? assignedTo, // 👈
     List<String>? assignedBy,
     List<String>? countryCodes,
     List<String>? campaigns,
@@ -86,6 +88,7 @@ class LeadsFilters {
        developers = developers ?? [],
        sales = sales ?? [],
        assignedFrom = assignedFrom ?? [],
+       assignedTo = assignedTo ?? [], // 👈
        assignedBy = assignedBy ?? [],
        countryCodes = countryCodes ?? [],
        campaigns = campaigns ?? [],
@@ -109,6 +112,7 @@ class LeadsFilters {
     sales: [...sales],
     assignedFrom: [...assignedFrom],
     assignedBy: [...assignedBy],
+    assignedTo: [...assignedTo], // 👈
     countryCodes: [...countryCodes],
     campaigns: [...campaigns],
     channel: [...channel],
@@ -155,6 +159,7 @@ class LeadsFilters {
     sales = o.sales;
     assignedFrom = o.assignedFrom;
     assignedBy = o.assignedBy;
+    assignedTo = o.assignedTo; // 👈
     countryCodes = o.countryCodes;
     campaigns = o.campaigns;
     channel = o.channel;
@@ -191,6 +196,7 @@ class LeadsFilters {
       (sales.isNotEmpty ? 1 : 0) +
       (assignedFrom.isNotEmpty ? 1 : 0) +
       (assignedBy.isNotEmpty ? 1 : 0) +
+      (assignedTo.isNotEmpty ? 1 : 0) + // 👈
       (countryCodes.isNotEmpty ? 1 : 0) +
       (campaigns.isNotEmpty ? 1 : 0) +
       (channel.isNotEmpty ? 1 : 0) +
@@ -266,6 +272,7 @@ class LeadsFilters {
       list('sales', sales);
       list('assignedFrom', assignedFrom);
       list('assignedBy', assignedBy);
+      list('assignedTo', assignedTo); // 👈 تأكد من اسم الـ param في الباك
       if (unassigned) q['unassigned'] = 'true';
       if (toDistribute) q['toDistribute'] = 'true';
       put('assignDateFrom', assignDateFrom);
@@ -321,6 +328,7 @@ class LeadsController extends ChangeNotifier {
   String? error;
 
   int totalAll = 0, totalActive = 0, totalInactive = 0, totalItems = 0;
+  bool _disposed = false; // 👈
 
   Future<void> refresh() => _fetch(reset: true);
 
@@ -333,6 +341,18 @@ class LeadsController extends ChangeNotifier {
   Future<void> apply(void Function(LeadsFilters f) change) {
     change(filters);
     return refresh();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  // أي notify بعد الـ dispose يتجاهل بدل ما يرمي exception
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
   }
 
   Future<void> _fetch({required bool reset}) async {
@@ -358,6 +378,7 @@ class LeadsController extends ChangeNotifier {
 
       final path = myLeads ? '${Endpoints.leads}/my-leads' : Endpoints.leads;
       final res = await CrudService(path).getAll(params: query);
+      if (id != _req || _disposed) return;
       if (id != _req) return; // جه رد أحدث
 
       final list = (res['data'] as List? ?? [])
@@ -376,7 +397,7 @@ class LeadsController extends ChangeNotifier {
       totalItems = (p['totalItems'] ?? 0) as int;
       error = null;
     } catch (e) {
-      if (id != _req) return;
+      if (id != _req || _disposed) return; // 👈
       error = e.toString();
     }
     loading = false;
