@@ -143,21 +143,29 @@ class LeadsScreenState extends State<LeadsScreen> {
         );
         String nameOf(LookupUser u) =>
             u.name.isEmpty ? (u.email.isEmpty ? 'Unnamed' : u.email) : u.name;
-
         // نفس قايمة الـ assign sheet: التيم ليدر نفسه + السيلز بتوعه
         final mine = <Opt>[
-          if (!widget.teamOwnerIsManager)
-            Opt(
-              widget.teamOwnerId!,
-              (widget.teamOwnerName ?? '').trim().isEmpty
-                  ? 'Me'
-                  : '${widget.teamOwnerName} (me)',
-            ),
+          // المانجر والتيم ليدر الاتنين ممكن يكون معاهم ليدز، فنضيف نفسه في الحالتين
+          Opt(
+            widget.teamOwnerId!,
+            (widget.teamOwnerName ?? '').trim().isEmpty
+                ? 'Me'
+                : '${widget.teamOwnerName} (me)',
+          ),
           ...team
-              .where((u) => u.role == 'Sales' && u.id != widget.teamOwnerId)
-              .map((u) => Opt(u.id, nameOf(u))),
+              .where(
+                (u) =>
+                    u.id != widget.teamOwnerId &&
+                    (u.role == 'Sales' ||
+                        (widget.teamOwnerIsManager && u.role == 'Team Leader')),
+              )
+              .map(
+                (u) => Opt(
+                  u.id,
+                  u.role == 'Team Leader' ? '${nameOf(u)} (TL)' : nameOf(u),
+                ),
+              ),
         ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-
         o['sales'] = mine;
         o['assignedFrom'] = mine; // مش هيشوف يوزرز برا فريقه
         o['assignedTo'] = mine; // 👈 نفس السيلز بتوع from
@@ -198,7 +206,10 @@ class LeadsScreenState extends State<LeadsScreen> {
       }
       _selected.clear();
     });
-    _c.apply((f) => f.stages = _stageIds.toList());
+    _c.apply((f) {
+      f.stages = _stageIds.toList();
+      f.noStage = false; // 👈
+    });
   }
 
   Future<void> _openFilters() async {
@@ -650,7 +661,8 @@ class LeadsScreenState extends State<LeadsScreen> {
                                     label: i == 0 ? 'All' : _stages[i - 1].name,
                                     // All مختارة لما مفيش stages متحددة
                                     selected: id == null
-                                        ? _stageIds.isEmpty
+                                        ? _stageIds.isEmpty &&
+                                              !_c.filters.noStage
                                         : _stageIds.contains(id),
                                     dark: dark,
                                     onTap: () => _toggleStage(id),

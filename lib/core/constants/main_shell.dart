@@ -11,6 +11,7 @@ import 'package:flutter_application_1/features/auth/providers/crm_settings.dart'
 import 'package:flutter_application_1/features/chat/presentation/screens/admin_ai_chat_screen.dart';
 import 'package:flutter_application_1/features/leads/presentation/screens/create_leads_screen.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';
+import 'package:flutter_application_1/features/manager/presentation/screens/manager_leads_screen.dart';
 import 'package:flutter_application_1/features/sales/presentation/sales_dashboard_screen.dart';
 import 'package:flutter_application_1/features/sales/presentation/sales_leads_screen.dart';
 import 'package:flutter_application_1/features/sales/provider/sales_dashboard_provider.dart';
@@ -27,6 +28,7 @@ UserRole? userRoleFromString(String? role) {
   switch (role?.toLowerCase().replaceAll(RegExp(r'[\s_-]'), '')) {
     case 'admin':
       return UserRole.admin;
+    case 'salesmanager': // 👈 الاسم الصح من الباك
     case 'manager':
       return UserRole.manager;
     case 'teamleader':
@@ -128,22 +130,24 @@ RoleNavConfig _baseNavConfig(UserRole role) {
         tabs: [
           _tab(
             'Dashboard',
-            Icons.space_dashboard_outlined,
-            Icons.space_dashboard_rounded,
-            (_) => _page('Manager Dashboard', Icons.space_dashboard_rounded),
+            Icons.home_outlined,
+            Icons.home_rounded,
+            (ctx) => ChangeNotifierProvider(
+              create: (_) => SalesDashboardProvider(
+                ctx.read<AuthProvider>().userId ?? '',
+                isTeam: true, // من غير sales → الباك بيرجّع scope=team
+                isManager: true, // 👈 جديد
+              )..load(),
+              child: const SalesDashboardScreen(),
+            ),
           ),
-          _tab(
-            'Leads',
-            Icons.groups_outlined,
-            Icons.groups_rounded,
-            (_) => _page('Leads', Icons.groups_rounded),
-          ),
-          _tab(
-            'Team',
-            Icons.diversity_3_outlined,
-            Icons.diversity_3_rounded,
-            (_) => _page('Team', Icons.diversity_3_rounded),
-          ),
+          _tab('Leads', Icons.contacts_outlined, Icons.contacts_rounded, (ctx) {
+            final uid = ctx.read<AuthProvider>().userId ?? '';
+            return ManagerLeadsScreen(
+              userId: uid,
+            ); // 👈 بدل TeamLeaderLeadsScreen
+          }),
+          _aiChatTab,
           _profileTab((_) => const MyProfileScreen()),
         ],
       );
@@ -152,7 +156,7 @@ RoleNavConfig _baseNavConfig(UserRole role) {
       return RoleNavConfig(
         tabs: [
           _tab(
-            'Home',
+            'Dashboard',
             Icons.home_outlined,
             Icons.home_rounded,
             // refreshOnEnter = true → provider جديد + load جديد كل دخول
@@ -179,7 +183,7 @@ RoleNavConfig _baseNavConfig(UserRole role) {
       return RoleNavConfig(
         tabs: [
           _tab(
-            'Home',
+            'Dashboard',
             Icons.home_outlined,
             Icons.home_rounded,
             // refreshOnEnter = true → provider جديد + load جديد كل دخول
@@ -351,12 +355,17 @@ class _ShellView extends StatelessWidget {
 
   Future<void> _addLead(BuildContext context, ShellProvider shell) async {
     final uid = context.read<AuthProvider>().userId;
+    final isManager = role == UserRole.manager;
+    final isTeamLeader = role == UserRole.teamLeader;
+
     await shell.navKeys[shell.index].currentState?.push<bool>(
       MaterialPageRoute(
         builder: (_) => CreateLeadScreen(
-          isAdmin: role == UserRole.admin || role == UserRole.manager,
+          isAdmin: role == UserRole.admin || isManager,
           fixedSalesId: role == UserRole.sales ? uid : null,
-          teamLeaderId: role == UserRole.teamLeader ? uid : null,
+          // التيم ليدر والمانجر: نفسه + فريقه
+          teamLeaderId: (isTeamLeader || isManager) ? uid : null,
+          teamOwnerIsManager: isManager,
         ),
       ),
     );

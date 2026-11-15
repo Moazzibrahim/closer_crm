@@ -731,15 +731,14 @@ class _AssignSheetState extends State<_AssignSheet> {
                 .map(toPerson)
                 .toList()
               ..sort(byName);
+        final ownerName = (widget.teamOwnerName ?? '').trim();
         _salesmen = [
-          if (widget.teamOwnerName != null && !widget.teamOwnerIsManager)
-            LeadPerson(
-              widget.teamOwnerId!,
-              widget.teamOwnerName!.trim().isEmpty
-                  ? 'Me'
-                  : '${widget.teamOwnerName} (me)',
-              'Team Leader',
-            ),
+          // التيم ليدر والمانجر الاتنين يقدروا يعملوا assign لنفسهم
+          LeadPerson(
+            widget.teamOwnerId!,
+            ownerName.isEmpty ? 'Me' : '$ownerName (me)',
+            widget.teamOwnerIsManager ? 'Manager' : 'Team Leader',
+          ),
           ...sales,
         ];
         _leaders = widget.allowTeamLeader

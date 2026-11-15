@@ -10,6 +10,7 @@ import 'package:flutter_application_1/core/constants/main_shell.dart';
 import 'package:flutter_application_1/core/widgets/dashboard_widget.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';
+import 'package:flutter_application_1/features/manager/presentation/screens/manager_leads_screen.dart';
 import 'package:flutter_application_1/features/notifications/presentation/notifications_screen.dart';
 import 'package:flutter_application_1/features/notifications/provider/notifications_provider.dart';
 import 'package:flutter_application_1/features/sales/model/sales_dashboard_model.dart';
@@ -44,6 +45,17 @@ const _monthNames = [
 
 String _ymd(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+/// بيختار شاشة الليدز حسب الـ role (بدل التيرنري المكرر في 3 أماكن)
+Widget _leadsFor(SalesDashboardProvider p, LeadsFilters preset) {
+  if (p.isManager) {
+    return ManagerLeadsScreen(userId: p.salesId, extraPreset: preset);
+  }
+  if (p.isTeam) {
+    return TeamLeaderLeadsScreen(userId: p.salesId, extraPreset: preset);
+  }
+  return SalesLeadsScreen(preset: preset);
+}
 
 // ─────────────────────────────────────────────
 //  Stage icons: بتتختار من اسم الـ stage (الأخص الأول)
@@ -137,10 +149,11 @@ class _DashboardView extends StatelessWidget {
 
             SliverToBoxAdapter(
               child: SectionTitle(
-                p.isTeam ? 'Team Lead Stages' : 'My Lead Stages',
+                p.isManager
+                    ? 'Team Stages'
+                    : (p.isTeam ? 'Team Lead Stages' : 'My Lead Stages'),
               ),
             ),
-
             // فلتر التاريخ بس (مفيش فلتر سيلز)
             const SliverToBoxAdapter(
               child: Padding(
@@ -476,20 +489,25 @@ class _StageCard extends StatelessWidget {
   final StageItem stage;
   const _StageCard({required this.stage});
 
+  bool get _isNoStage {
+    final n = stage.name.toLowerCase().replaceAll(RegExp(r'[\s_\-]'), '');
+    return stage.id.isEmpty || stage.id == 'null' || n == 'nostage';
+  }
+
   void _open(BuildContext context) {
-    // _StageCard._open
     final p = context.read<SalesDashboardProvider>();
     final r = p.range;
+    final noStage = _isNoStage;
+
     context.read<ShellProvider>().openLeads(
       LeadsFilters(
-        stages: [stage.id],
+        stages: noStage ? const [] : [stage.id], // 👈 مفيش stage مع No stage
+        noStage: noStage,
         sales: p.isTeam ? const [] : [p.salesId],
         createdFrom: r == null ? null : _ymd(r.start),
         createdTo: r == null ? null : _ymd(r.end),
       ),
-      builder: (preset) => p.isTeam
-          ? TeamLeaderLeadsScreen(userId: p.salesId, extraPreset: preset)
-          : SalesLeadsScreen(preset: preset),
+      builder: (preset) => _leadsFor(p, preset),
     );
   }
 
@@ -561,9 +579,7 @@ void _openFollowUpLeads(
       stale: stale,
       sales: p.isTeam ? const [] : [p.salesId],
     ),
-    builder: (preset) => p.isTeam
-        ? TeamLeaderLeadsScreen(userId: p.salesId, extraPreset: preset)
-        : SalesLeadsScreen(preset: preset),
+    builder: (preset) => _leadsFor(p, preset),
   );
 }
 
@@ -842,8 +858,7 @@ void _openMemberLeads(BuildContext context, String memberId) {
   final p = context.read<SalesDashboardProvider>();
   context.read<ShellProvider>().openLeads(
     LeadsFilters(sales: [memberId]),
-    builder: (preset) =>
-        TeamLeaderLeadsScreen(userId: p.salesId, extraPreset: preset),
+    builder: (preset) => _leadsFor(p, preset),
   );
 }
 
@@ -875,7 +890,7 @@ class _TeamSection extends StatelessWidget {
     }
 
     final me = t.me(p.salesId);
-    final others = t.others(p.salesId);
+    final others = t.others(p.salesId, isManager: p.isManager);
     final othersLeads = others.fold<int>(0, (s, m) => s + m.leads);
 
     return Padding(
@@ -1108,6 +1123,8 @@ class _MemberTile extends StatelessWidget {
                           if (m.noStage > 0)
                             _Pill('${m.noStage} fresh', _kBlue),
                           if (!m.isActive) _Pill('inactive', Colors.grey),
+                          if (m.role == 'Team Leader')
+                            _Pill('Team Leader', AppColors.gold),
                         ],
                       ),
                     ],

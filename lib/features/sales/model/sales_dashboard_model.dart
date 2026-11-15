@@ -27,13 +27,13 @@ class StageItem {
   final int count, late;
   final double percent;
   StageItem.fromJson(Map<String, dynamic> j)
-      : id = '${j['id']}',
-        name = '${j['name'] ?? ''}',
-        color = _hex(j['color']),
-        lateColor = _hex(j['lateColor'], const Color(0xFFF2545B)),
-        count = _i(j['count']),
-        late = _i(j['late']),
-        percent = _d(j['percent']);
+    : id = j['id'] == null ? '' : '${j['id']}',
+      name = '${j['name'] ?? ''}',
+      color = _hex(j['color']),
+      lateColor = _hex(j['lateColor'], const Color(0xFFF2545B)),
+      count = _i(j['count']),
+      late = _i(j['late']),
+      percent = _d(j['percent']);
 }
 
 class StagesData {
@@ -42,15 +42,15 @@ class StagesData {
   final double sharePercent;
   final List<StageItem> stages;
   StagesData.fromJson(Map<String, dynamic> j)
-      : total = _i(j['total']),
-        lateTotal = _i(j['lateTotal']),
-        sharePercent = _d(j['share']?['percent']),
-        shareSales = _i(j['share']?['sales']),
-        shareAll = _i(j['share']?['all']),
-        stages = [
-          for (final s in (j['stages'] as List? ?? []))
-            StageItem.fromJson(Map<String, dynamic>.from(s as Map))
-        ];
+    : total = _i(j['total']),
+      lateTotal = _i(j['lateTotal']),
+      sharePercent = _d(j['share']?['percent']),
+      shareSales = _i(j['share']?['sales']),
+      shareAll = _i(j['share']?['all']),
+      stages = [
+        for (final s in (j['stages'] as List? ?? []))
+          StageItem.fromJson(Map<String, dynamic>.from(s as Map)),
+      ];
 }
 
 // ─────────────────────────────────────────────
@@ -61,9 +61,9 @@ class FollowBucket {
   final int count;
   final String? from, to;
   FollowBucket.fromJson(dynamic j)
-      : count = _i(j is Map ? j['count'] : 0),
-        from = j is Map ? j['from']?.toString() : null,
-        to = j is Map ? j['to']?.toString() : null;
+    : count = _i(j is Map ? j['count'] : 0),
+      from = j is Map ? j['from']?.toString() : null,
+      to = j is Map ? j['to']?.toString() : null;
 }
 
 class OverdueLead {
@@ -91,7 +91,7 @@ class OverdueLead {
       '${j['stageName'] ?? stMap?['name'] ?? (st is String ? st : '')}',
       [
         if (sales is List)
-          for (final s in sales) s is Map ? '${s['name'] ?? ''}' : '$s'
+          for (final s in sales) s is Map ? '${s['name'] ?? ''}' : '$s',
       ],
       DateTime.tryParse('${j['dueAt'] ?? j['nextFollowUp'] ?? ''}')?.toLocal(),
       _hex(j['stageColor'] ?? stMap?['color']),
@@ -106,19 +106,19 @@ class FollowUpsData {
   final List<OverdueLead> mostOverdue;
 
   FollowUpsData.fromJson(Map<String, dynamic> j)
-      : overdue = FollowBucket.fromJson(j['followUps']?['overdue']),
-        today = FollowBucket.fromJson(j['followUps']?['today']),
-        tomorrow = FollowBucket.fromJson(j['followUps']?['tomorrow']),
-        week = FollowBucket.fromJson(j['followUps']?['week']),
-        noComment = _i(j['stale']?['noComment']),
-        untouched = _i(j['stale']?['untouched']),
-        unassignedOld = j['stale']?['unassignedOld'] == null
-            ? null
-            : _i(j['stale']['unassignedOld']),
-        mostOverdue = [
-          for (final m in (j['mostOverdue'] as List? ?? []))
-            if (m is Map) OverdueLead.fromJson(Map<String, dynamic>.from(m))
-        ];
+    : overdue = FollowBucket.fromJson(j['followUps']?['overdue']),
+      today = FollowBucket.fromJson(j['followUps']?['today']),
+      tomorrow = FollowBucket.fromJson(j['followUps']?['tomorrow']),
+      week = FollowBucket.fromJson(j['followUps']?['week']),
+      noComment = _i(j['stale']?['noComment']),
+      untouched = _i(j['stale']?['untouched']),
+      unassignedOld = j['stale']?['unassignedOld'] == null
+          ? null
+          : _i(j['stale']['unassignedOld']),
+      mostOverdue = [
+        for (final m in (j['mostOverdue'] as List? ?? []))
+          if (m is Map) OverdueLead.fromJson(Map<String, dynamic>.from(m)),
+      ];
 }
 
 // ─────────────────────────────────────────────
@@ -131,15 +131,15 @@ class DealsData {
   final List<BarPoint> timeline;
 
   DealsData.fromJson(Map<String, dynamic> j)
-      : deals = _i(j['totals']?['deals']),
-        clients = _i(j['totals']?['clients']),
-        value = _d(j['totals']?['value']),
-        commission = _d(j['totals']?['commission']),
-        cashback = _d(j['totals']?['cashback']),
-        net = _d(j['totals']?['net']),
-        years = [for (final y in (j['years'] as List? ?? [])) _i(y)],
-        timeline = [
-          for (final t in (j['timeline'] as List? ?? []))
-            BarPoint('${t['label']}', _d(t['value']), _i(t['deals']))
-        ];
+    : deals = _i(j['totals']?['deals']),
+      clients = _i(j['totals']?['clients']),
+      value = _d(j['totals']?['value']),
+      commission = _d(j['totals']?['commission']),
+      cashback = _d(j['totals']?['cashback']),
+      net = _d(j['totals']?['net']),
+      years = [for (final y in (j['years'] as List? ?? [])) _i(y)],
+      timeline = [
+        for (final t in (j['timeline'] as List? ?? []))
+          BarPoint('${t['label']}', _d(t['value']), _i(t['deals'])),
+      ];
 }

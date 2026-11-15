@@ -118,7 +118,7 @@ class LeadsService {
           data: {'sales': salesIds, 'mode': mode},
         ),
       );
-      if (notify && mode != 'remove') unawaited(_notifyAssigned());
+      // if (notify && mode != 'remove') unawaited(_notifyAssigned());
       return res;
     } catch (e) {
       throw DioClient.parse(e);
@@ -149,7 +149,7 @@ class LeadsService {
           ),
         );
       }
-      if (mode != 'remove') unawaited(_notifyAssigned()); // إشعار واحد بس
+      // if (mode != 'remove') unawaited(_notifyAssigned()); // إشعار واحد بس
       return res;
     } catch (e) {
       throw DioClient.parse(e);
@@ -173,7 +173,7 @@ class LeadsService {
       if (clearHistoryNotes != null)
         'clearHistory': {'notes': clearHistoryNotes},
     });
-    unawaited(_notifyAssigned()); // إشعار واحد
+    // unawaited(_notifyAssigned()); // إشعار واحد
     return res;
   }
 

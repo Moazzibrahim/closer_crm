@@ -86,6 +86,9 @@ class TeamData {
   }
 
   /// سيلز التيم ليدر ده بس (teamLeader.id == uid)
-  List<TeamMember> others(String uid) =>
-      all.where((m) => m.id != uid && m.teamLeaderId == uid).toList();
+  /// التيم ليدر: سيلزه بس (teamLeader.id == uid)
+  /// المانجر: كل أعضاء الفريق اللي الباك رجّعهم (TLs + سيلز) من غير فلتر
+  List<TeamMember> others(String uid, {bool isManager = false}) => all
+      .where((m) => m.id != uid && (isManager || m.teamLeaderId == uid))
+      .toList();
 }

@@ -102,8 +102,13 @@ class SalesDashboardProvider extends ChangeNotifier {
   final String salesId;
   final bool isTeam; // true للتيم ليدر
   final _service = SalesDashboardService();
+  final bool isManager; // 👈 بيحدد شاشة الليدز بس، الـ API نفسه
 
-  SalesDashboardProvider(this.salesId, {this.isTeam = false}) {
+  SalesDashboardProvider(
+    this.salesId, {
+    this.isTeam = false,
+    this.isManager = false,
+  }) {
     /* زي ما هو */
     final now = DateTime.now();
     // الافتراضي: الشهر الحالي

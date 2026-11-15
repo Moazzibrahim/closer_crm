@@ -32,6 +32,7 @@ class LeadsFilters {
       areas,
       fields;
   bool unassigned, hasClosedDeals, transferred, toDistribute, linkedDeals;
+  bool noStage; // 👈 leads من غير stage (صف "No stage" في الداشبورد)
   num? budgetMin, budgetMax;
   String? createdFrom, createdTo;
   String? assignDateFrom, assignDateTo;
@@ -68,6 +69,7 @@ class LeadsFilters {
     this.transferred = false,
     this.toDistribute = false,
     this.linkedDeals = false,
+    this.noStage = false, // 👈
     this.budgetMin,
     this.budgetMax,
     this.createdFrom,
@@ -139,6 +141,7 @@ class LeadsFilters {
     followUpFrom: followUpFrom,
     followUpTo: followUpTo,
     stale: stale,
+    noStage: noStage, // 👈
   );
 
   void clearFollowUp() {
@@ -251,7 +254,8 @@ class LeadsFilters {
     );
 
     // ── stage ──
-    list('stage', stages);
+    // في LeadsFilters.toQuery
+    list('stage', stages.where((s) => s.isNotEmpty && s != 'null').toList());
     list('oldStage', oldStages);
 
     // ── source ──
@@ -296,6 +300,7 @@ class LeadsFilters {
 
     // ── follow-up / stale ──
     if (lateFollowUp) q['lateFollowUp'] = 'true';
+    if (noStage) q['noStage'] = 'true'; // 👈
     put('followUpFrom', followUpFrom);
     put('followUpTo', followUpTo);
     put('stale', stale);

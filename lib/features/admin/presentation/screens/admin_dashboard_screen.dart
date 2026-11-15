@@ -499,16 +499,22 @@ class _StageCard extends StatelessWidget {
   final StageStat stage;
   const _StageCard({required this.stage});
 
+  // No stage = virtual أو من غير id صالح
+  bool get _isNoStage =>
+      stage.isVirtual ||
+      stage.id == null ||
+      stage.id!.isEmpty ||
+      stage.id == 'null';
+
   void _open(BuildContext context) {
-    // نفس فلاتر الداشبورد (تاريخ + سيلز) عشان الأرقام تتطابق
     final dash = context.read<DashboardProvider>();
     final range = dash.range;
     final salesId = dash.sales?.id;
 
-    // حوّل لتاب Leads بالفلتر
     context.read<ShellProvider>().openLeads(
       LeadsFilters(
-        stages: [stage.id!],
+        stages: _isNoStage ? const [] : [stage.id!], // 👈
+        noStage: _isNoStage, // 👈
         sales: salesId == null ? null : [salesId],
         createdFrom: range == null ? null : ymd(range.start),
         createdTo: range == null ? null : ymd(range.end),
@@ -522,16 +528,14 @@ class _StageCard extends StatelessWidget {
       name: stage.name,
       count: stage.count,
       percent: stage.percent,
-      color: stage.color, // اللون جاي من الباك
+      color: stage.color,
       icon: _stageIcon(stage),
       late: stage.late,
       lateColor: stage.lateColor,
-      // "No stage" مفيش id نفلتر بيه
-      onTap: stage.id == null ? null : () => _open(context),
+      onTap: () => _open(context), // 👈 شيلنا شرط id == null
     );
   }
 }
-
 // ─────────────────────────────────────────────
 //  Sales filter chip (All sales / اسم السيلز)
 // ─────────────────────────────────────────────

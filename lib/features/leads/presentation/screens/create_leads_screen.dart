@@ -65,14 +65,16 @@ class _QARow {
 // ─────────────────────────────────────────────
 class CreateLeadScreen extends StatefulWidget {
   final bool isAdmin;
-  final String? fixedSalesId; // 👈 للسيلز: الليد على نفسه ومفيش dropdown
-  final String? teamLeaderId; // 👈 للتيم ليدر: يشوف نفسه + فريقه بس
+  final String? fixedSalesId;
+  final String? teamLeaderId; // للتيم ليدر / المانجر: نفسه + فريقه
+  final bool teamOwnerIsManager; // 👈 جديد
 
   const CreateLeadScreen({
     super.key,
     this.isAdmin = false,
     this.fixedSalesId,
     this.teamLeaderId,
+    this.teamOwnerIsManager = false, // 👈
   });
 
   @override
@@ -198,17 +200,21 @@ class _CreateLeadScreenState extends State<CreateLeadScreen> {
       // الـ Sales: Sales + Team Leader بس (الـ active منهم)
       if (needUsers) {
         if (isTL) {
-          // تيم ليدر: نفسه + فريقه بس (من الـ endpoint المسموح له)
-          final tlId = widget.teamLeaderId!;
+          final ownerId = widget.teamLeaderId!;
+          final isMgr = widget.teamOwnerIsManager;
           final team = await UsersLookupService().myTeam(
-            isManager: false,
-            userId: tlId,
+            isManager: isMgr, // 👈 كان false
+            userId: ownerId,
           );
           _salesOpts = [
-            // التيم ليدر نفسه
-            _Opt(tlId, 'Me  •  Team Leader'),
+            // نفسه (تيم ليدر أو مانجر)
+            _Opt(ownerId, 'Me  •  ${isMgr ? 'Manager' : 'Team Leader'}'),
             ...team
-                .where((u) => u.role == 'Sales' && u.id != tlId)
+                .where(
+                  (u) =>
+                      u.id != ownerId &&
+                      (u.role == 'Sales' || (isMgr && u.role == 'Team Leader')),
+                )
                 .map(
                   (u) => _Opt(
                     u.id,
