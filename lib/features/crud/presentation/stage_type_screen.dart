@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
 import 'package:flutter_application_1/core/utils/dio_client.dart';
+import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/crud/data/stage_type_model.dart';
 import 'package:flutter_application_1/features/crud/providers/crud_service.dart';
+import 'package:provider/provider.dart';
 // ⚠️ حط stage_types_model.dart في نفس فولدر projects_model.dart (أو عدّل المسار)
 // ⚠️ لازم يكون عندك Endpoints.stageTypes في api_constants.dart
 
@@ -15,8 +17,18 @@ const _danger = Color(0xFFE5484D);
 const _success = Color(0xFF2E9E6B);
 
 const _months = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 String _fmtDate(DateTime? d) =>
@@ -63,9 +75,8 @@ class _OptionsApi {
       _run(() => _dio.post('$base/$id/options', data: {'label': label}));
 
   // PUT    {base}/{id}/options/{optionId}           body: {label}
-  Future<void> rename(String id, String optId, String label) => _run(
-    () => _dio.put('$base/$id/options/$optId', data: {'label': label}),
-  );
+  Future<void> rename(String id, String optId, String label) =>
+      _run(() => _dio.put('$base/$id/options/$optId', data: {'label': label}));
 
   // PUT    {base}/{id}/options/{optionId}/activate | deactivate
   Future<void> setActive(String id, String optId, bool active) => _run(
@@ -269,6 +280,8 @@ class _StageTypesScreenState extends State<StageTypesScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final list = _filtered;
     final selecting = _selected.isNotEmpty;
+    final role = context.select<AuthProvider, String?>((a) => a.role);
+    final canWrite = CrudPermissions.canWrite(role, Endpoints.stageTypes);
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : AppColors.background,
@@ -288,7 +301,7 @@ class _StageTypesScreenState extends State<StageTypesScreen> {
               )
             : null,
         actions: [
-          if (selecting)
+          if (selecting && canWrite)
             IconButton(
               icon: Icon(
                 _types.any((t) => _selected.contains(t.id) && t.active)
@@ -299,16 +312,18 @@ class _StageTypesScreenState extends State<StageTypesScreen> {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.gold,
-        foregroundColor: AppColors.navy,
-        onPressed: () => _openForm(),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text(
-          'Add Stage Type',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ),
+      floatingActionButton: canWrite
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.navy,
+              onPressed: () => _openForm(),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text(
+                'Add Stage Type',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            )
+          : null,
       body: Column(
         children: [
           _stats(isDark),
@@ -354,7 +369,7 @@ class _StageTypesScreenState extends State<StageTypesScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Expanded(child: _body(list, isDark)),
+          Expanded(child: _body(list, isDark, canWrite)),
         ],
       ),
     );
@@ -434,7 +449,7 @@ class _StageTypesScreenState extends State<StageTypesScreen> {
     ),
   );
 
-  Widget _body(List<StageTypeModel> list, bool isDark) {
+  Widget _body(List<StageTypeModel> list, bool isDark, bool canWrite) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
@@ -468,10 +483,13 @@ class _StageTypesScreenState extends State<StageTypesScreen> {
           return _StageTypeCard(
             type: t,
             selected: _selected.contains(id),
+            canWrite: canWrite,
             isDark: isDark,
             // لو في selection شغّال الضغطة بتعمل toggle، غير كده بتفتح الـ edit
-            onTap: () => _selected.isNotEmpty ? _toggle(id) : _openForm(t),
-            onLongPress: () => _toggle(id),
+            onTap: canWrite
+                ? () => _selected.isNotEmpty ? _toggle(id) : _openForm(t)
+                : null,
+            onLongPress: canWrite ? () => _toggle(id) : null,
             onAction: (a) {
               switch (a) {
                 case 'edit':
@@ -497,8 +515,9 @@ class _StageTypesScreenState extends State<StageTypesScreen> {
 class _StageTypeCard extends StatelessWidget {
   final StageTypeModel type;
   final bool selected, isDark;
-  final VoidCallback onTap, onLongPress;
+  final VoidCallback? onTap, onLongPress;
   final ValueChanged<String> onAction;
+  final bool canWrite;
 
   const _StageTypeCard({
     required this.type,
@@ -507,6 +526,7 @@ class _StageTypeCard extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     required this.onAction,
+    required this.canWrite,
   });
 
   @override
@@ -637,27 +657,28 @@ class _StageTypeCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  onSelected: onAction,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                if (canWrite)
+                  PopupMenuButton<String>(
+                    onSelected: onAction,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      const PopupMenuItem(
+                        value: 'options',
+                        child: Text('Manage options'),
+                      ),
+                      PopupMenuItem(
+                        value: 'toggle',
+                        child: Text(t.active ? 'Deactivate' : 'Activate'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete', style: TextStyle(color: _danger)),
+                      ),
+                    ],
                   ),
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    const PopupMenuItem(
-                      value: 'options',
-                      child: Text('Manage options'),
-                    ),
-                    PopupMenuItem(
-                      value: 'toggle',
-                      child: Text(t.active ? 'Deactivate' : 'Activate'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete', style: TextStyle(color: _danger)),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
@@ -709,7 +730,9 @@ class _StageTypeFormSheetState extends State<_StageTypeFormSheet> {
 
   // الـ options الجاهزة اللي لسه ما اتختارتش ومش موجودة أصلًا
   List<String> get _remaining => _presetOptions
-      .where((o) => !_options.contains(o) && !_existing.contains(o.toLowerCase()))
+      .where(
+        (o) => !_options.contains(o) && !_existing.contains(o.toLowerCase()),
+      )
       .toList();
 
   bool _saving = false;

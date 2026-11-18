@@ -4,9 +4,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
+import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/crud/data/commway_model.dart';
 import 'package:flutter_application_1/features/crud/data/stages_model.dart';
 import 'package:flutter_application_1/features/crud/providers/crud_service.dart';
+import 'package:provider/provider.dart';
 // ⚠️ لازم يكون عندك Endpoints.communicationWays في api_constants.dart
 
 const _danger = Color(0xFFE5484D);
@@ -261,6 +263,11 @@ class _CommunicationWaysScreenState extends State<CommunicationWaysScreen> {
     final list = _filtered;
     final selecting = _selected.isNotEmpty;
     final cats = _categoriesInData;
+    final role = context.select<AuthProvider, String?>((a) => a.role);
+    final canWrite = CrudPermissions.canWrite(
+      role,
+      Endpoints.communicationWays,
+    );
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : AppColors.background,
@@ -280,7 +287,7 @@ class _CommunicationWaysScreenState extends State<CommunicationWaysScreen> {
               )
             : null,
         actions: [
-          if (selecting)
+          if (selecting && canWrite)
             IconButton(
               icon: Icon(
                 _ways.any((w) => _selected.contains(w.id) && w.active)
@@ -291,16 +298,18 @@ class _CommunicationWaysScreenState extends State<CommunicationWaysScreen> {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.gold,
-        foregroundColor: AppColors.navy,
-        onPressed: () => _openForm(),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text(
-          'Add Way',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ),
+      floatingActionButton: canWrite
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.navy,
+              onPressed: () => _openForm(),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text(
+                'Add Way',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            )
+          : null,
       body: Column(
         children: [
           _stats(isDark),
@@ -368,7 +377,7 @@ class _CommunicationWaysScreenState extends State<CommunicationWaysScreen> {
               ),
             ),
           const SizedBox(height: 8),
-          Expanded(child: _body(list, isDark)),
+          Expanded(child: _body(list, isDark, canWrite)),
         ],
       ),
     );
@@ -448,7 +457,7 @@ class _CommunicationWaysScreenState extends State<CommunicationWaysScreen> {
     ),
   );
 
-  Widget _body(List<CommunicationWayModel> list, bool isDark) {
+  Widget _body(List<CommunicationWayModel> list, bool isDark, bool canWrite) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
@@ -482,10 +491,13 @@ class _CommunicationWaysScreenState extends State<CommunicationWaysScreen> {
           return _WayCard(
             way: w,
             selected: _selected.contains(id),
+            canWrite: canWrite,
             isDark: isDark,
             // لو في selection شغّال الضغطة بتعمل toggle، غير كده بتفتح الـ edit
-            onTap: () => _selected.isNotEmpty ? _toggle(id) : _openForm(w),
-            onLongPress: () => _toggle(id),
+            onTap: canWrite
+                ? () => _selected.isNotEmpty ? _toggle(id) : _openForm(w)
+                : null,
+            onLongPress: canWrite ? () => _toggle(id) : null,
             onAction: (a) {
               switch (a) {
                 case 'edit':
@@ -509,8 +521,9 @@ class _CommunicationWaysScreenState extends State<CommunicationWaysScreen> {
 class _WayCard extends StatelessWidget {
   final CommunicationWayModel way;
   final bool selected, isDark;
-  final VoidCallback onTap, onLongPress;
+  final VoidCallback? onTap, onLongPress;
   final ValueChanged<String> onAction;
+  final bool canWrite;
 
   const _WayCard({
     required this.way,
@@ -519,6 +532,7 @@ class _WayCard extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     required this.onAction,
+    required this.canWrite,
   });
 
   @override
@@ -630,23 +644,24 @@ class _WayCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  onSelected: onAction,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                if (canWrite)
+                  PopupMenuButton<String>(
+                    onSelected: onAction,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(
+                        value: 'toggle',
+                        child: Text(w.active ? 'Deactivate' : 'Activate'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete', style: TextStyle(color: _danger)),
+                      ),
+                    ],
                   ),
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(
-                      value: 'toggle',
-                      child: Text(w.active ? 'Deactivate' : 'Activate'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete', style: TextStyle(color: _danger)),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),

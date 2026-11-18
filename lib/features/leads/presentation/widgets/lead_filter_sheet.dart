@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
 import 'package:flutter_application_1/features/crud/providers/crud_service.dart';
+import 'package:flutter_application_1/features/crud/providers/users_lookup_service.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';
 
 /// الحقول اللي ممكن تظهر في الفلتر
@@ -31,6 +32,7 @@ enum LeadFilterField {
   regions,
   areas,
   sales,
+  stage, // 👈 جديد
   assignedFrom,
   assignedBy,
   assignedTo, // 👈 جديد (للتيم ليدر / المانجر)
@@ -103,28 +105,8 @@ class LeadFilterOptions {
           )
           .where((o) => o.name.isNotEmpty)
           .toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  static Future<List<Opt>> _loadSales() async {
-    try {
-      final r = await CrudService(
-        Endpoints.allUsers,
-      ).getAll(params: {'limit': 1000});
-      return (r['data'] as List? ?? [])
-          .whereType<Map>()
-          .where((e) => _salesRoles.contains(_roleOf(e)))
-          .map((e) {
-            final name =
-                '${e['name'] ?? e['fullName'] ?? '${e['firstName'] ?? ''} ${e['lastName'] ?? ''}'}'
-                    .trim();
-            return Opt('${e['_id'] ?? e['id']}', name);
-          })
-          .where((o) => o.name.isNotEmpty)
-          .toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('filter options: $endpoint failed: $e'); // 👈
       return [];
     }
   }
@@ -152,39 +134,71 @@ class LeadFilterOptions {
   }
 
   /// [includeUsers] = false لو الرول مالوش فلاتر assignment (يوفر request)
-  static Future<Map<String, List<Opt>>> load({bool includeUsers = true}) async {
+  static Future<Map<String, List<Opt>>> load({
+    bool includeUsers = true,
+    bool useLookup = false,
+  }) async {
     final res = await Future.wait([
-      _load(Endpoints.projects), // 0
-      _load(Endpoints.campaigns), // 1
-      _load(Endpoints.channels), // 2
-      _load(Endpoints.communicationWays), // 3
-      _load(Endpoints.cities), // 4
-      _load(Endpoints.regions), // 5
-      _load(Endpoints.areas), // 6
-      _load(Endpoints.propertyTypes), // 7
-      _load(Endpoints.developers), // 8
-      _load(Endpoints.stages), // 9 (لـ oldStage)
-      includeUsers ? _loadUsers() : Future.value(<Opt>[]), // 10 كل اليوزرز
-      includeUsers
-          ? _loadUsers(salesOnly: true)
-          : Future.value(<Opt>[]), // 11 سيلز بس
+      _load(Endpoints.projects),
+      _load(Endpoints.campaigns),
+      _load(Endpoints.channels),
+      _load(Endpoints.communicationWays),
+      _load(Endpoints.cities),
+      _load(Endpoints.regions),
+      _load(Endpoints.areas),
+      _load(Endpoints.propertyTypes),
+      _load(Endpoints.developers),
+      _load(Endpoints.stages),
+      // 10: كل اليوزرز (مرة واحدة)
+      !includeUsers
+          ? Future.value(<Opt>[])
+          : useLookup
+          ? _loadViaLookup()
+          : _loadUsers(),
+      // 11: سيلز بس
+      !includeUsers || useLookup
+          ? Future.value(<Opt>[])
+          : _loadUsers(salesOnly: true),
     ]);
     final allUsers = res[10];
     return {
+      // ── Source ──
       'projects': res[0],
       'campaigns': res[1],
       'channel': res[2],
       'communicationWay': res[3],
+      // ── Location ──
       'cities': res[4],
       'regions': res[5],
       'areas': res[6],
+      // ── Lead ──
       'propertyTypes': res[7],
       'developers': res[8],
-      'oldStage': res[9],
-      'sales': res[11], // سيلز بس
+      'oldStage': res[9], // قايمة الـ stages
+      'stage': res[9], // 👈 فلتر الـ stage الحالية (multi)
+      // ── Assignment ──
+      'sales': useLookup ? allUsers : res[11],
       'assignedFrom': allUsers,
       'assignedBy': allUsers,
+      'assignedTo': allUsers,
     };
+  }
+
+  static Future<List<Opt>> _loadViaLookup() async {
+    try {
+      final users = await UsersLookupService().lookupAll(
+        roles: const ['Sales', 'Team Leader', 'Sales Manager'], // 👈
+        isActive: true,
+      );
+      return users
+          .where((u) => u.name.isNotEmpty)
+          .map((u) => Opt(u.id, u.name))
+          .toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    } catch (e) {
+      debugPrint('filter lookup failed: $e'); // 👈
+      return [];
+    }
   }
 }
 
@@ -455,6 +469,7 @@ class _LeadsFilterSheetState extends State<LeadsFilterSheet> {
       LeadFilterField.leadType,
       LeadFilterField.countryCode,
       LeadFilterField.phone,
+      LeadFilterField.stage, // 👈
       LeadFilterField.oldStage,
       LeadFilterField.hasClosedDeals,
       LeadFilterField.transferred,
@@ -635,7 +650,16 @@ class _LeadsFilterSheetState extends State<LeadsFilterSheet> {
                               ),
                             ),
                           ),
+                        if (_has(LeadFilterField.stage))
+                          _pick(
+                            p,
+                            Icons.flag_rounded,
+                            'Stage',
+                            'stage',
+                            f.stages, // multi-select (single: false هو الافتراضي)
+                          ),
                         if (_has(LeadFilterField.oldStage))
+                          // ... زي ما هو
                           _pick(
                             p,
                             Icons.history_rounded,

@@ -35,13 +35,17 @@ import '../../../auth/presentation/screens/my_profile_screen.dart';
 class _MenuItem {
   final String title;
   final IconData icon;
-  final bool danger; // true = لون أحمر (للـ Trash مثلاً)
-
-  // الصفحة اللي هتفتح. لو null بتفتح صفحة placeholder بنفس الاسم.
-  // لما تعمل الصفحة الحقيقية: page: (_) => const CitiesScreen(),
+  final bool danger;
+  final bool adminOnly; // 👈 جديد
   final WidgetBuilder? page;
 
-  const _MenuItem(this.title, this.icon, {this.danger = false, this.page});
+  const _MenuItem(
+    this.title,
+    this.icon, {
+    this.danger = false,
+    this.adminOnly = false, // 👈
+    this.page,
+  });
 }
 
 class _MenuGroup {
@@ -59,21 +63,19 @@ List<_MenuGroup> _groups = [
       Icons.history_rounded,
       page: (_) => const ActivityScreen(),
     ),
-    _MenuItem(
-      'Communication Way',
-      Icons.forum_rounded,
-      page: (_) => const CommunicationWaysScreen(),
-    ),
   ]),
   _MenuGroup('Team', [
     _MenuItem(
       'Users',
       Icons.manage_accounts_rounded,
+      adminOnly: true, // 👈
+
       page: (_) => UsersScreen(),
     ),
     _MenuItem(
       'Sessions',
       Icons.devices_rounded,
+      adminOnly: true, // 👈
       page: (_) => const SessionsScreen(),
     ), // 👈 جديد
   ]),
@@ -81,10 +83,16 @@ List<_MenuGroup> _groups = [
     _MenuItem(
       'Reshuffle Rules',
       Icons.shuffle_rounded,
+      adminOnly: true, // 👈
       page: (_) => const ReshuffleRulesScreen(),
     ),
   ]),
   _MenuGroup('CRM Setup', [
+    _MenuItem(
+      'Communication Way',
+      Icons.forum_rounded,
+      page: (_) => const CommunicationWaysScreen(),
+    ),
     _MenuItem(
       'Stages',
       Icons.stacked_line_chart_rounded,
@@ -138,9 +146,24 @@ List<_MenuGroup> _groups = [
 class AdminProfileScreen extends StatelessWidget {
   const AdminProfileScreen({super.key});
 
+  // الـ groups المسموحة للـ role الحالي (الجروب الفاضي بيتشال)
+  List<_MenuGroup> _visibleGroups(bool isAdmin) {
+    return [
+      for (final g in _groups)
+        if (g.items.any((i) => isAdmin || !i.adminOnly))
+          _MenuGroup(g.title, [
+            for (final i in g.items)
+              if (isAdmin || !i.adminOnly) i,
+          ]),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final role = context.select<AuthProvider, String?>((a) => a.role);
+    final isAdmin =
+        (role ?? '').toLowerCase().replaceAll(RegExp(r'[\s_-]'), '') == 'admin';
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : AppColors.background,
@@ -152,11 +175,9 @@ class AdminProfileScreen extends StatelessWidget {
           const SizedBox(height: 8),
 
           // Groups
-          for (final g in _groups) _GroupCard(group: g),
+          for (final g in _visibleGroups(isAdmin)) _GroupCard(group: g),
 
           const SizedBox(height: 8),
-
-          // Log out
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: _LogoutButton(onTap: () => _confirmLogout(context)),

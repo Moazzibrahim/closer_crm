@@ -141,6 +141,9 @@ class _CreateLeadScreenState extends State<CreateLeadScreen> {
     super.dispose();
   }
 
+  String _userLabel(LookupUser u) => u.name.isEmpty
+      ? (u.email.isEmpty ? 'Unnamed' : u.email)
+      : '${u.name}  •  ${u.role}';
   // ---------- Lookups ----------
   Future<void> _loadLookups() async {
     setState(() {
@@ -160,7 +163,7 @@ class _CreateLeadScreenState extends State<CreateLeadScreen> {
         get(Endpoints.channels),
         get(Endpoints.communicationWays),
         get(Endpoints.stages),
-        if (needUsers && !isTL) AuthService().getAllUsers(),
+        // if (needUsers && !isTL) AuthService().getAllUsers(),
       ]);
 
       int byLabel(_Opt a, _Opt b) =>
@@ -199,15 +202,15 @@ class _CreateLeadScreenState extends State<CreateLeadScreen> {
           .toList();
       // الـ Sales: Sales + Team Leader بس (الـ active منهم)
       if (needUsers) {
+        final lookup = UsersLookupService();
+
         if (isTL) {
+          // Team Leader / Manager: self + own team
           final ownerId = widget.teamLeaderId!;
           final isMgr = widget.teamOwnerIsManager;
-          final team = await UsersLookupService().myTeam(
-            isManager: isMgr, // 👈 كان false
-            userId: ownerId,
-          );
+          final team = await lookup.myTeam(isManager: isMgr, userId: ownerId);
+
           _salesOpts = [
-            // نفسه (تيم ليدر أو مانجر)
             _Opt(ownerId, 'Me  •  ${isMgr ? 'Manager' : 'Team Leader'}'),
             ...team
                 .where(
@@ -215,26 +218,26 @@ class _CreateLeadScreenState extends State<CreateLeadScreen> {
                       u.id != ownerId &&
                       (u.role == 'Sales' || (isMgr && u.role == 'Team Leader')),
                 )
-                .map(
-                  (u) => _Opt(
-                    u.id,
-                    u.name.isEmpty
-                        ? (u.email.isEmpty ? 'Unnamed' : u.email)
-                        : '${u.name}  •  ${u.role}',
-                  ),
-                ),
+                .map((u) => _Opt(u.id, _userLabel(u))),
           ]..sort(byLabel);
         } else {
-          // أدمن / مانجر: كل الـ Sales + Team Leaders (زي ما كان)
-          _salesOpts =
-              (r[5]['data'] as List? ?? [])
+          // Everyone else (admin, marketer, ...): Sales + Team Leaders
+          List<_Opt> opts = [];
+
+          if (widget.isAdmin) {
+            // Admin only: /auth/All
+            try {
+              final res = await AuthService().getAllUsers();
+              opts = (res['data'] as List? ?? [])
                   .whereType<Map>()
                   .map((e) => UserModel.fromJson(Map<String, dynamic>.from(e)))
                   .where(
                     (u) =>
                         u.id != null &&
                         u.active &&
-                        (u.role == 'Sales' || u.role == 'Team Leader'),
+                        (u.role == 'Sales' ||
+                            u.role == 'Team Leader' ||
+                            u.role == 'Sales Manager'),
                   )
                   .map(
                     (u) => _Opt(
@@ -244,8 +247,22 @@ class _CreateLeadScreenState extends State<CreateLeadScreen> {
                           : '${u.fullName}  •  ${u.role}',
                     ),
                   )
-                  .toList()
-                ..sort(byLabel);
+                  .toList();
+            } catch (e) {
+              debugPrint('getAllUsers failed, falling back to lookup: $e');
+            }
+          }
+
+          // Non-admin, or admin fallback
+          if (opts.isEmpty) {
+            final users = await lookup.lookupAll(
+              roles: const ['Sales', 'Team Leader', 'Sales Manager'],
+              isActive: true,
+            );
+            opts = users.map((u) => _Opt(u.id, _userLabel(u))).toList();
+          }
+
+          _salesOpts = opts..sort(byLabel);
         }
       }
     } catch (e) {

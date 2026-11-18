@@ -12,6 +12,9 @@ import 'package:flutter_application_1/features/chat/presentation/screens/admin_a
 import 'package:flutter_application_1/features/leads/presentation/screens/create_leads_screen.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';
 import 'package:flutter_application_1/features/manager/presentation/screens/manager_leads_screen.dart';
+import 'package:flutter_application_1/features/marketer/presentation/screens/marketer_dashboard_screen.dart';
+import 'package:flutter_application_1/features/marketer/presentation/screens/marketer_leads_screen.dart';
+import 'package:flutter_application_1/features/marketer/provider/marketer_dashboard_provider.dart';
 import 'package:flutter_application_1/features/sales/presentation/sales_dashboard_screen.dart';
 import 'package:flutter_application_1/features/sales/presentation/sales_leads_screen.dart';
 import 'package:flutter_application_1/features/sales/provider/sales_dashboard_provider.dart';
@@ -179,7 +182,6 @@ RoleNavConfig _baseNavConfig(UserRole role) {
 
     case UserRole.sales:
       // نفس تابات السيلز
-
       return RoleNavConfig(
         tabs: [
           _tab(
@@ -207,27 +209,25 @@ RoleNavConfig _baseNavConfig(UserRole role) {
 
     case UserRole.marketer:
       return RoleNavConfig(
-        canAddLead: false,
+        // canAddLead بقى true (الـ default) → زرار الـ + في نص الـ bar
         tabs: [
           _tab(
-            'Home',
+            'Dashboard',
             Icons.home_outlined,
             Icons.home_rounded,
-            (_) => _page('Marketer Home', Icons.home_rounded),
-          ),
-          _tab(
-            'Campaigns',
-            Icons.campaign_outlined,
-            Icons.campaign_rounded,
-            (_) => _page('Campaigns', Icons.campaign_rounded),
+            (ctx) => ChangeNotifierProvider(
+              create: (_) => MarketingDashboardProvider()..load(),
+              child: const MarketingDashboardScreen(),
+            ),
           ),
           _tab(
             'Leads',
             Icons.groups_outlined,
             Icons.groups_rounded,
-            (_) => _page('Leads', Icons.groups_rounded),
+            (_) => const MarketerLeadsScreen(),
           ),
-          _profileTab((_) => const MyProfileScreen()),
+          _aiChatTab, // بيتفلتر تلقائي حسب crm.canUseAiChat
+          _profileTab((_) => AdminProfileScreen()),
         ],
       );
   }
@@ -361,7 +361,7 @@ class _ShellView extends StatelessWidget {
     await shell.navKeys[shell.index].currentState?.push<bool>(
       MaterialPageRoute(
         builder: (_) => CreateLeadScreen(
-          isAdmin: role == UserRole.admin || isManager,
+          isAdmin: role == UserRole.admin,
           fixedSalesId: role == UserRole.sales ? uid : null,
           // التيم ليدر والمانجر: نفسه + فريقه
           teamLeaderId: (isTeamLeader || isManager) ? uid : null,

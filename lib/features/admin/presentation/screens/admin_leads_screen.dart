@@ -30,6 +30,7 @@ class LeadsScreen extends StatefulWidget {
   final bool teamOwnerIsManager;
   final bool canResetCreationDate;
   final String? teamOwnerName;
+  final bool useUserLookup;
 
   const LeadsScreen({
     super.key,
@@ -44,6 +45,7 @@ class LeadsScreen extends StatefulWidget {
     this.teamOwnerId,
     this.teamOwnerIsManager = false,
     this.canResetCreationDate = true,
+    this.useUserLookup = false,
     this.teamOwnerName,
   });
 
@@ -133,6 +135,7 @@ class LeadsScreenState extends State<LeadsScreen> {
     final scoped = widget.teamOwnerId != null && !widget.myLeads;
     final o = await LeadFilterOptions.load(
       includeUsers: !widget.myLeads && !scoped,
+      useLookup: widget.useUserLookup,
     );
 
     if (scoped) {
@@ -225,7 +228,13 @@ class LeadsScreenState extends State<LeadsScreen> {
           : LeadFilterFields.all, // 👈 أدمن / ماركتر
     );
     if (r == null) return;
-    setState(_selected.clear);
+    setState(() {
+      _selected.clear();
+      // 👈 الـ chips تعكس الـ stages اللي اختارها من الفلتر
+      _stageIds
+        ..clear()
+        ..addAll(r.stages);
+    });
     await _c.apply((f) => f.copyAdvancedFrom(r));
   }
 
@@ -392,6 +401,7 @@ class LeadsScreenState extends State<LeadsScreen> {
       teamOwnerName: widget.teamOwnerName,
       teamOwnerIsManager: widget.teamOwnerIsManager,
       allowAddToCurrent: widget.teamOwnerId == null,
+      useUserLookup: widget.useUserLookup,
     );
     if (result == null || !mounted) return;
     // ... باقي الدالة زي ما هو

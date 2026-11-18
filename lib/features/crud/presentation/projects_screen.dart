@@ -1,10 +1,11 @@
 // projects_screen.dart
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, unused_field, prefer_final_fields
 
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
 import 'package:flutter_application_1/core/constants/location_picker_service.dart';
+import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/crud/data/areas_model..dart';
 import 'package:flutter_application_1/features/crud/data/cities_model.dart';
 import 'package:flutter_application_1/features/crud/data/developers_model.dart';
@@ -12,6 +13,7 @@ import 'package:flutter_application_1/features/crud/data/projects_model.dart';
 import 'package:flutter_application_1/features/crud/data/property_type_model.dart';
 import 'package:flutter_application_1/features/crud/providers/crud_service.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:provider/provider.dart';
 // ⚠️ حط location_picker_screen.dart جنب الملف ده (أو عدّل المسار)
 
 const _danger = Color(0xFFE5484D);
@@ -197,6 +199,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final list = _filtered;
     final selecting = _selected.isNotEmpty;
+    final role = context.select<AuthProvider, String?>((a) => a.role);
+    final canWrite = CrudPermissions.canWrite(role, Endpoints.projects);
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : AppColors.background,
@@ -216,7 +220,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               )
             : null,
         actions: [
-          if (selecting)
+          if (selecting && canWrite)
             IconButton(
               icon: Icon(
                 _projects.any((p) => _selected.contains(p.id) && p.active)
@@ -227,16 +231,18 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.gold,
-        foregroundColor: AppColors.navy,
-        onPressed: () => _openForm(),
-        icon: const Icon(Icons.add_home_work_rounded),
-        label: const Text(
-          'Add Project',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ),
+      floatingActionButton: canWrite
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.navy,
+              onPressed: () => _openForm(),
+              icon: const Icon(Icons.add_home_work_rounded),
+              label: const Text(
+                'Add Project',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            )
+          : null,
       body: Column(
         children: [
           _stats(isDark),
@@ -282,7 +288,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Expanded(child: _body(list, isDark)),
+          Expanded(child: _body(list, isDark, canWrite)),
         ],
       ),
     );
@@ -362,7 +368,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     ),
   );
 
-  Widget _body(List<ProjectModel> list, bool isDark) {
+  Widget _body(List<ProjectModel> list, bool isDark, bool canWrite) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
@@ -396,10 +402,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           return _ProjectCard(
             project: p,
             selected: _selected.contains(id),
+            canWrite: canWrite,
             isDark: isDark,
             // لو في selection شغّال الضغطة بتعمل toggle، غير كده بتفتح الـ edit
-            onTap: () => _selected.isNotEmpty ? _toggle(id) : _openForm(p),
-            onLongPress: () => _toggle(id),
+            onTap: canWrite
+                ? () => _selected.isNotEmpty ? _toggle(id) : _openForm(p)
+                : null,
+            onLongPress: canWrite ? () => _toggle(id) : null,
             onAction: (a) {
               switch (a) {
                 case 'edit':
@@ -423,8 +432,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 class _ProjectCard extends StatelessWidget {
   final ProjectModel project;
   final bool selected, isDark;
-  final VoidCallback onTap, onLongPress;
+  final VoidCallback? onTap, onLongPress;
   final ValueChanged<String> onAction;
+  final bool canWrite;
 
   const _ProjectCard({
     required this.project,
@@ -433,6 +443,7 @@ class _ProjectCard extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     required this.onAction,
+    required this.canWrite,
   });
 
   @override
@@ -538,23 +549,24 @@ class _ProjectCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  onSelected: onAction,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                if (canWrite)
+                  PopupMenuButton<String>(
+                    onSelected: onAction,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(
+                        value: 'toggle',
+                        child: Text(p.active ? 'Deactivate' : 'Activate'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete', style: TextStyle(color: _danger)),
+                      ),
+                    ],
                   ),
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(
-                      value: 'toggle',
-                      child: Text(p.active ? 'Deactivate' : 'Activate'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete', style: TextStyle(color: _danger)),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),

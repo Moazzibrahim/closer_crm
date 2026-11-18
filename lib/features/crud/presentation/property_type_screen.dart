@@ -4,8 +4,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
+import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/crud/data/property_type_model.dart';
 import 'package:flutter_application_1/features/crud/providers/crud_service.dart';
+import 'package:provider/provider.dart';
 // ⚠️ حط property_types_model.dart في نفس فولدر projects_model.dart (أو عدّل المسار)
 // ⚠️ لازم يكون عندك Endpoints.propertyTypes في api_constants.dart
 
@@ -13,8 +15,18 @@ const _danger = Color(0xFFE5484D);
 const _success = Color(0xFF2E9E6B);
 
 const _months = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
 ];
 
 String _fmtDate(DateTime? d) =>
@@ -191,6 +203,8 @@ class _PropertyTypesScreenState extends State<PropertyTypesScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final list = _filtered;
     final selecting = _selected.isNotEmpty;
+    final role = context.select<AuthProvider, String?>((a) => a.role);
+    final canWrite = CrudPermissions.canWrite(role, Endpoints.propertyTypes);
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : AppColors.background,
@@ -210,7 +224,7 @@ class _PropertyTypesScreenState extends State<PropertyTypesScreen> {
               )
             : null,
         actions: [
-          if (selecting)
+          if (selecting && canWrite)
             IconButton(
               icon: Icon(
                 _types.any((t) => _selected.contains(t.id) && t.active)
@@ -221,16 +235,18 @@ class _PropertyTypesScreenState extends State<PropertyTypesScreen> {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.gold,
-        foregroundColor: AppColors.navy,
-        onPressed: () => _openForm(),
-        icon: const Icon(Icons.add_home_work_rounded),
-        label: const Text(
-          'Add Type',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ),
+      floatingActionButton: canWrite
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.navy,
+              onPressed: () => _openForm(),
+              icon: const Icon(Icons.add_home_work_rounded),
+              label: const Text(
+                'Add Type',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            )
+          : null,
       body: Column(
         children: [
           _stats(isDark),
@@ -276,7 +292,7 @@ class _PropertyTypesScreenState extends State<PropertyTypesScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Expanded(child: _body(list, isDark)),
+          Expanded(child: _body(list, isDark, canWrite)),
         ],
       ),
     );
@@ -356,7 +372,7 @@ class _PropertyTypesScreenState extends State<PropertyTypesScreen> {
     ),
   );
 
-  Widget _body(List<PropertyTypeModel> list, bool isDark) {
+  Widget _body(List<PropertyTypeModel> list, bool isDark, bool canWrite) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
@@ -390,10 +406,14 @@ class _PropertyTypesScreenState extends State<PropertyTypesScreen> {
           return _PropertyTypeCard(
             type: t,
             selected: _selected.contains(id),
+            canWrite: canWrite,
+
             isDark: isDark,
             // لو في selection شغّال الضغطة بتعمل toggle، غير كده بتفتح الـ edit
-            onTap: () => _selected.isNotEmpty ? _toggle(id) : _openForm(t),
-            onLongPress: () => _toggle(id),
+            onTap: canWrite
+                ? () => _selected.isNotEmpty ? _toggle(id) : _openForm(t)
+                : null,
+            onLongPress: canWrite ? () => _toggle(id) : null,
             onAction: (a) {
               switch (a) {
                 case 'edit':
@@ -417,8 +437,9 @@ class _PropertyTypesScreenState extends State<PropertyTypesScreen> {
 class _PropertyTypeCard extends StatelessWidget {
   final PropertyTypeModel type;
   final bool selected, isDark;
-  final VoidCallback onTap, onLongPress;
+  final VoidCallback? onTap, onLongPress;
   final ValueChanged<String> onAction;
+  final bool canWrite;
 
   const _PropertyTypeCard({
     required this.type,
@@ -427,6 +448,7 @@ class _PropertyTypeCard extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     required this.onAction,
+    required this.canWrite,
   });
 
   @override
@@ -512,23 +534,24 @@ class _PropertyTypeCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  onSelected: onAction,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                if (canWrite)
+                  PopupMenuButton<String>(
+                    onSelected: onAction,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(
+                        value: 'toggle',
+                        child: Text(t.active ? 'Deactivate' : 'Activate'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete', style: TextStyle(color: _danger)),
+                      ),
+                    ],
                   ),
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(
-                      value: 'toggle',
-                      child: Text(t.active ? 'Deactivate' : 'Activate'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete', style: TextStyle(color: _danger)),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),

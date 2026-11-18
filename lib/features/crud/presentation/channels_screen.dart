@@ -4,8 +4,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
+import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/crud/data/channels_model.dart';
-import 'package:flutter_application_1/features/crud/providers/crud_service.dart'; // عدّل المسار
+import 'package:flutter_application_1/features/crud/providers/crud_service.dart';
+import 'package:provider/provider.dart'; // عدّل المسار
 
 const _danger = Color(0xFFE5484D);
 
@@ -158,6 +160,8 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final list = _filtered;
+    final role = context.select<AuthProvider, String?>((a) => a.role);
+    final canWrite = CrudPermissions.canWrite(role, Endpoints.channels);
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : AppColors.background,
@@ -171,16 +175,18 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.gold,
-        foregroundColor: AppColors.navy,
-        onPressed: () => _openForm(),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text(
-          'Add Channel',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ),
+      floatingActionButton: canWrite
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.navy,
+              onPressed: () => _openForm(),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text(
+                'Add Channel',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            )
+          : null,
       body: Column(
         children: [
           _stats(isDark),
@@ -234,7 +240,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Expanded(child: _body(list, isDark)),
+          Expanded(child: _body(list, isDark, canWrite)),
         ],
       ),
     );
@@ -310,7 +316,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     ),
   );
 
-  Widget _body(List<ChannelModel> list, bool isDark) {
+  Widget _body(List<ChannelModel> list, bool isDark, bool canWrite) {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
@@ -343,7 +349,8 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
           return _ChannelCard(
             channel: c,
             isDark: isDark,
-            onTap: () => _openForm(c),
+            canWrite: canWrite,
+            onTap: canWrite ? () => _openForm(c) : null,
             onAction: (a) {
               switch (a) {
                 case 'edit':
@@ -367,14 +374,16 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
 class _ChannelCard extends StatelessWidget {
   final ChannelModel channel;
   final bool isDark;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final ValueChanged<String> onAction;
+  final bool canWrite;
 
   const _ChannelCard({
     required this.channel,
     required this.isDark,
     required this.onTap,
     required this.onAction,
+    required this.canWrite,
   });
 
   @override
@@ -459,23 +468,24 @@ class _ChannelCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  onSelected: onAction,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                if (canWrite)
+                  PopupMenuButton<String>(
+                    onSelected: onAction,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      PopupMenuItem(
+                        value: 'toggle',
+                        child: Text(c.active ? 'Deactivate' : 'Activate'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete', style: TextStyle(color: _danger)),
+                      ),
+                    ],
                   ),
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(
-                      value: 'toggle',
-                      child: Text(c.active ? 'Deactivate' : 'Activate'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete', style: TextStyle(color: _danger)),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),

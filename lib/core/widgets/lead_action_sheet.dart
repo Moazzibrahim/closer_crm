@@ -128,6 +128,7 @@ Future<AssignResult?> showAssignSheet(
   String? teamOwnerName,
   Map<String, String> currentNames = const {},
   bool allowAddToCurrent = true, // 👈 Add to current للأدمن بس
+  bool useUserLookup = false, // ماركتر: يجيب اليوزرز من /auth/lookup
 }) {
   return _showSheet<AssignResult>(
     context,
@@ -143,6 +144,7 @@ Future<AssignResult?> showAssignSheet(
       teamOwnerName: teamOwnerName,
       currentNames: currentNames,
       allowAddToCurrent: allowAddToCurrent, // 👈
+      useUserLookup: useUserLookup,
     ),
   );
 }
@@ -606,6 +608,7 @@ class _AssignSheet extends StatefulWidget {
   final String? teamOwnerName;
   final Map<String, String> currentNames;
   final bool allowAddToCurrent; // 👈
+  final bool useUserLookup;
 
   const _AssignSheet({
     required this.count,
@@ -619,6 +622,7 @@ class _AssignSheet extends StatefulWidget {
     this.teamOwnerName,
     this.currentNames = const {},
     this.allowAddToCurrent = true, // 👈
+    this.useUserLookup = false,
   });
 
   @override
@@ -745,6 +749,28 @@ class _AssignSheetState extends State<_AssignSheet> {
             ? (team.where((u) => u.role == 'Team Leader').map(toPerson).toList()
                 ..sort(byName))
             : <LeadPerson>[];
+      } else if (widget.useUserLookup) {
+        // ماركتر: سيلز وتيم ليدرز بس
+        final users = await UsersLookupService().lookupAll(
+          roles: const ['Sales', 'Sales Manager', 'Team Leader'], // 👈
+          isActive: true,
+        );
+        LeadPerson toPerson(LookupUser u) => LeadPerson(
+          u.id,
+          u.name.isEmpty ? (u.email.isEmpty ? 'Unnamed' : u.email) : u.name,
+          u.role,
+        );
+        _salesmen =
+            users
+                .where(
+                  (u) => u.role == 'Sales' || u.role == 'Sales Manager',
+                ) // 👈
+                .map(toPerson)
+                .toList()
+              ..sort(byName);
+        _leaders =
+            users.where((u) => u.role == 'Team Leader').map(toPerson).toList()
+              ..sort(byName);
       } else {
         // أدمن: كل اليوزرز (زي ما كان)
         final r = await AuthService().getAllUsers();

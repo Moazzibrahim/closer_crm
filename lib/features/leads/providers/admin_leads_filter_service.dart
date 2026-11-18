@@ -153,6 +153,8 @@ class LeadsFilters {
 
   /// الفلاتر "المتقدمة" بس (keyword / isActive / stages من برا الشيت)
   void copyAdvancedFrom(LeadsFilters o) {
+    stages = o.stages; // 👈
+    noStage = o.stages.isEmpty ? o.noStage : false; // 👈 Reset بيرجّعها false
     phone = o.phone;
     leadType = o.leadType;
     oldStages = o.oldStages;
@@ -190,6 +192,7 @@ class LeadsFilters {
   }
 
   int get advancedCount =>
+      (stages.isNotEmpty ? 1 : 0) + // 👈
       (phone != null && phone!.isNotEmpty ? 1 : 0) +
       (leadType != null ? 1 : 0) +
       (oldStages.isNotEmpty ? 1 : 0) +
