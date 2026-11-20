@@ -177,6 +177,7 @@ class LeadsFilters {
     transferred = o.transferred;
     toDistribute = o.toDistribute;
     linkedDeals = o.linkedDeals;
+    lateFollowUp = o.lateFollowUp;
     budgetMin = o.budgetMin;
     budgetMax = o.budgetMax;
     createdFrom = o.createdFrom;
@@ -215,6 +216,7 @@ class LeadsFilters {
       (transferred ? 1 : 0) +
       (toDistribute ? 1 : 0) +
       (linkedDeals ? 1 : 0) +
+      (lateFollowUp ? 1 : 0) +
       (budgetMin != null || budgetMax != null ? 1 : 0) +
       (createdFrom != null || createdTo != null ? 1 : 0) +
       (assignDateFrom != null || assignDateTo != null ? 1 : 0) +

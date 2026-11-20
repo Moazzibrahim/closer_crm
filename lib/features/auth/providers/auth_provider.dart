@@ -96,6 +96,28 @@ class AuthProvider extends ChangeNotifier {
     return null;
   }
 
+  String? _lastSentFcmToken; // عشان ما نبعتش نفس التوكن مرتين
+
+  /// بتبعت التوكن للباك لو اليوزر عامل login.
+  /// نادها: بعد restore، وعلى كل onTokenRefresh.
+  Future<void> syncFcmToken([String? token]) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jwt = prefs.getString(ApiConfig.tokenKey);
+      if (jwt == null || jwt.isEmpty) return; // مش عامل login
+
+      final t = token ?? await _getFcmToken();
+      if (t == null || t == _lastSentFcmToken) return;
+
+      final deviceId = await DeviceHelper.getDeviceId();
+      await _auth.updateFcmToken(fcmToken: t, deviceId: deviceId);
+      _lastSentFcmToken = t;
+      debugPrint('FCM token synced');
+    } catch (e) {
+      debugPrint('syncFcmToken failed: $e'); // هيتعاد في الفتحة الجاية
+    }
+  }
+
   Future<bool> login({required String email, required String password}) async {
     isLoading = true;
     error = null;
@@ -112,6 +134,7 @@ class AuthProvider extends ChangeNotifier {
         platform: DeviceHelper.platform,
         fcmToken: fcmToken, // 👈 جديد
       );
+      _lastSentFcmToken = fcmToken; // 👈 ضيف السطر ده
 
       user = _findUser(data!); // 👈
       final prefs = await SharedPreferences.getInstance();
@@ -155,13 +178,18 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout() async {
     // الريكويستات الأول (محتاجة الـ token)، والفشل ما يمنعش الخروج
     try {
-      await _auth.logoutRemote();
+      final deviceId = await DeviceHelper.getDeviceId();
+      final fcm =
+          _lastSentFcmToken ?? await FirebaseMessaging.instance.getToken();
+
+      await _auth.logoutRemote(fcmToken: fcm, deviceId: deviceId);
     } catch (_) {}
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(ApiConfig.tokenKey);
     await prefs.remove(_roleKey);
     await prefs.remove(_userKey);
+    _lastSentFcmToken = null;
 
     user = null;
     data = null;

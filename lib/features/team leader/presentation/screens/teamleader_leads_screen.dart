@@ -30,7 +30,7 @@ class TeamLeaderLeadsScreen extends StatelessWidget {
       teamOwnerIsManager: false,
       canChangeStage: false,
       canDelete: false,
-      detailsConfig: LeadDetailsConfig.sales,
+      detailsConfig: LeadDetailsConfig.teamLeader,
     );
   }
 }

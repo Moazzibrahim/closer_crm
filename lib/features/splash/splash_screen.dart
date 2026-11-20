@@ -87,8 +87,14 @@ class _SplashScreenState extends State<SplashScreen>
   /// لو فيه session محفوظة (token + role) → ادخل على الشاشة الرئيسية مباشرة،
   /// غير كده → شاشة اللوجين.
   Future<void> _goNext() async {
+    final auth = context.read<AuthProvider>(); // 👈 عرّف المتغير هنا
+
     // استرجع بيانات اليوزر المحفوظة قبل أي تنقل
-    await context.read<AuthProvider>().restore();
+    await auth.restore();
+    if (!mounted) return;
+
+    // 👈 من غير await: ما نعطّلش الـ splash. بتتجاهل نفسها لو مفيش login.
+    auth.syncFcmToken();
 
     final savedRole = await AuthProvider.savedRole();
     if (!mounted) return;

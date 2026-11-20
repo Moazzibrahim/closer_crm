@@ -683,14 +683,14 @@ class _LeadsFilterSheetState extends State<LeadsFilterSheet> {
                         //     f.transferred,
                         //     (v) => setState(() => f.transferred = v),
                         //   ),
-                        // if (_has(LeadFilterField.linkedDeals))
-                        //   _switchTile(
-                        //     p,
-                        //     Icons.link_rounded,
-                        //     'Linked deals',
-                        //     f.linkedDeals,
-                        //     (v) => setState(() => f.linkedDeals = v),
-                        //   ),
+                        if (_has(LeadFilterField.linkedDeals))
+                          _switchTile(
+                            p,
+                            Icons.link_rounded,
+                            'Linked deals',
+                            f.linkedDeals,
+                            (v) => setState(() => f.linkedDeals = v),
+                          ),
                       ],
                     ),
 
@@ -916,7 +916,14 @@ class _LeadsFilterSheetState extends State<LeadsFilterSheet> {
                               f.activityTo = b;
                             },
                           ),
-                        if (_has(LeadFilterField.followUpDate))
+                        if (_has(LeadFilterField.followUpDate)) ...[
+                          _switchTile(
+                            p,
+                            Icons.alarm_off_rounded,
+                            'Late follow-ups only',
+                            f.lateFollowUp,
+                            (v) => setState(() => f.lateFollowUp = v),
+                          ),
                           _rangeTile(
                             p,
                             Icons.alarm_rounded,
@@ -929,6 +936,7 @@ class _LeadsFilterSheetState extends State<LeadsFilterSheet> {
                             },
                             allowFuture: true,
                           ),
+                        ],
                         if (_has(LeadFilterField.stale))
                           _chipsBlock(p, 'Stale leads', [
                             _chip(

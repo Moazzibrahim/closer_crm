@@ -91,18 +91,6 @@ class LeadsService {
     }
   }
 
-  Future<void> _notifyAssigned() async {
-    try {
-      final result = await _notifications
-          .sendTest(); // 👈 بدّلها بـ endpoint الإرسال الحقيقي لما يتوفر
-      for (final e in result.errors) {
-        debugPrint('Push error: ${e.code} - ${e.message}');
-      }
-    } catch (e) {
-      debugPrint('Assign notification failed: $e');
-    }
-  }
-
   /// mode: replace | add | remove
   /// notify=false بيستخدمه bulkAssign عشان يبعت إشعار واحد بس
   Future<Map<String, dynamic>> assign(
@@ -156,7 +144,7 @@ class LeadsService {
     }
   }
 
-    /// request واحد: assign + stage + resetDate + clearHistory على كل الـ leads
+  /// request واحد: assign + stage + resetDate + clearHistory على كل الـ leads
   Future<Map<String, dynamic>> bulkAssignActions(
     List<String> leadIds, {
     required List<String> salesIds,
@@ -325,13 +313,28 @@ class LeadsService {
 
   // ---------------- Deals ----------------
 
-  Future<Map<String, dynamic>> makeDeal(
-    String leadId,
-    Map<String, dynamic> deal,
-  ) async {
-    // deal: project, unitPrice, unitType, unitNumber, companyCommissionRatio, cashbackRatio, amountPaid, closedAt?
+  /// POST /Leads/:id/deals
+  /// mode: 'merge' (نفس الليد) | 'newContact' (ليد جديد linked)
+  /// الرد: data = الليد الأصلي، newLead = الجديد (في newContact بس)
+  Future<Map<String, dynamic>> addDeal(
+    String leadId, {
+    required String mode,
+    required String stageId,
+    required Map<String, dynamic> deal,
+    Map<String, dynamic>? contact, // مطلوب في newContact
+  }) async {
     try {
-      return _map(await _dio.post(Endpoints.leadDeals(leadId), data: deal));
+      return _map(
+        await _dio.post(
+          Endpoints.leadDeals(leadId),
+          data: {
+            'mode': mode,
+            'stage': stageId,
+            'deal': deal,
+            'contact': ?contact, // نفس syntax الـ null-aware اللي بتستخدمه
+          },
+        ),
+      );
     } catch (e) {
       throw DioClient.parse(e);
     }
@@ -345,7 +348,7 @@ class LeadsService {
     // الـ collection بيستخدم POST للتعديل — لو الباك عندك PUT/PATCH غيّر السطر ده
     try {
       return _map(
-        await _dio.post(Endpoints.leadDeal(leadId, dealId), data: fields),
+        await _dio.patch(Endpoints.leadDeal(leadId, dealId), data: fields),
       );
     } catch (e) {
       throw DioClient.parse(e);

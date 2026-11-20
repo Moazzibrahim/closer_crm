@@ -809,6 +809,12 @@ class LeadsScreenState extends State<LeadsScreen> {
                         leadId: lead.id,
                         initial: lead,
                         config: widget.detailsConfig,
+                        allowAssignTeamLeader: widget.allowAssignTeamLeader,
+                        teamOwnerId: widget.teamOwnerId,
+                        teamOwnerIsManager: widget.teamOwnerIsManager,
+                        teamOwnerName: widget.teamOwnerName,
+                        canResetCreationDate: widget.canResetCreationDate,
+                        useUserLookup: widget.useUserLookup,
                       ),
                     ),
                   );

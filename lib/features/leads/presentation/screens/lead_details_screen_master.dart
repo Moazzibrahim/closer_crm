@@ -27,12 +27,14 @@ class LeadDetailsConfig {
   final bool showAssignHistory;
   final bool canSeeSubmissions;
 
-  /// 👈 جديد: الـ history sections + Added By للـ admin بس
+  /// الـ history sections + Added By للـ admin بس
   final bool canSeeHistory;
 
   final bool allowHistoryOptions;
   final Set<String> hiddenRows;
   final bool canCommentWithoutStage;
+  final bool canAddDeal; // زرار Add deal
+  final bool canSeeDealDetails; // كل بيانات الـ Deal: الأدمن بس
 
   const LeadDetailsConfig({
     this.canChangeStage = true,
@@ -42,22 +44,33 @@ class LeadDetailsConfig {
     this.showAssignHistory = true,
     this.allowHistoryOptions = false,
     this.canSeeSubmissions = false,
-    this.canCommentWithoutStage = false, // 👈 الافتراضي: لازم يغيّر stage
-    this.canSeeHistory = false, // 👈 الافتراضي مخفي لأي role
+    this.canCommentWithoutStage = false, // الافتراضي: لازم يغيّر stage
+    this.canSeeHistory = false, // الافتراضي مخفي لأي role
+    this.canAddDeal = true,
+    this.canSeeDealDetails = false,
     this.hiddenRows = const {},
   });
 
   static const admin = LeadDetailsConfig(
     allowHistoryOptions: true,
     canSeeSubmissions: true,
-    canSeeHistory: true, // 👈 admin بس
-    canChangeStage: true, // 👈 admin بس
-    canCommentWithoutStage: true, // 👈 admin بس
+    canSeeHistory: true,
+    canChangeStage: true,
+    canCommentWithoutStage: true,
+    canSeeDealDetails: true,
   );
-  static const manager = LeadDetailsConfig();
-  static const teamLeader = LeadDetailsConfig();
+  static const manager = LeadDetailsConfig(
+    hiddenRows: {'Added By'},
+    canChangeStage: false,
+    showAssignHistory: false,
+  );
+  static const teamLeader = LeadDetailsConfig(
+    hiddenRows: {'Added By'},
+    canChangeStage: false,
+    showAssignHistory: false,
+  );
   static const sales = LeadDetailsConfig(
-    canChangeStage: false, // 👈
+    canChangeStage: false,
     canAssign: false,
     showAssignHistory: false,
     hiddenRows: {'Added By', 'Sales'},
@@ -66,8 +79,8 @@ class LeadDetailsConfig {
     canChangeStage: false,
     canAssign: false,
     canComment: false,
+    canAddDeal: false, // الماركتر مالوش يضيف deal
     showAssignHistory: false,
-    hiddenRows: {'Sales', 'Phone 2'},
   );
 }
 
@@ -80,13 +93,28 @@ class LeadDetailsConfig {
 // ─────────────────────────────────────────────
 class LeadDetailsScreen extends StatefulWidget {
   final String leadId;
-  final LeadItem? initial; // بيظهر الهيدر فوراً لحد ما الداتا توصل
+  final LeadItem? initial;
   final LeadDetailsConfig config;
+
+  // 👇 نفس باراميترات LeadsScreen الخاصة بالـ assign
+  final bool allowAssignTeamLeader;
+  final String? teamOwnerId;
+  final bool teamOwnerIsManager;
+  final String? teamOwnerName;
+  final bool canResetCreationDate;
+  final bool useUserLookup;
+
   const LeadDetailsScreen({
     super.key,
     required this.leadId,
     this.initial,
     this.config = const LeadDetailsConfig(),
+    this.allowAssignTeamLeader = true,
+    this.teamOwnerId,
+    this.teamOwnerIsManager = false,
+    this.teamOwnerName,
+    this.canResetCreationDate = true,
+    this.useUserLookup = false,
   });
 
   @override
@@ -109,21 +137,389 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
   LeadDetailsConfig get _cfg => widget.config;
 
   // ids السيلز الحاليين للـ lead (من sales، وfallback من assignedBy اللي isCurrent)
-  List<String> get _currentSalesIds {
+  ({List<String> ids, Map<String, String> names}) get _currentSales {
+    final ids = <String>{};
+    final names = <String, String>{};
+
     String? idOf(dynamic u) =>
         (u is Map ? (u['_id'] ?? u['id']) : u)?.toString();
 
-    final ids = <String>{};
-    for (final s in (_raw?['sales'] as List? ?? [])) {
-      final id = idOf(s);
-      if (id != null && id.isNotEmpty) ids.add(id);
+    void add(dynamic u) {
+      // الشكل: { user: {...}, isCurrent, assignedAs }
+      if (u is Map && u['user'] != null) {
+        if (u['isCurrent'] == false) return;
+        u = u['user'];
+      }
+      final id = idOf(u);
+      if (id == null || id.isEmpty) return;
+      ids.add(id);
+      if (u is Map) {
+        final n =
+            (u['fullName'] ??
+                    u['name'] ??
+                    '${u['firstName'] ?? ''} ${u['lastName'] ?? ''}')
+                .toString()
+                .trim();
+        if (n.isNotEmpty) names[id] = n;
+      }
     }
+
+    final s = _raw?['sales'];
+    if (s is List) {
+      s.forEach(add);
+    } else if (s != null) {
+      add(s);
+    }
+
     for (final a in (_raw?['assignedBy'] as List? ?? []).whereType<Map>()) {
-      if (a['isCurrent'] != true) continue;
-      final id = idOf(a['sales']);
-      if (id != null && id.isNotEmpty) ids.add(id);
+      if (a['isCurrent'] == true) add(a['sales']);
     }
-    return ids.toList();
+    return (ids: ids.toList(), names: names);
+  }
+
+  // ── Deals / Linked ──
+  List<Map> get _deals =>
+      (_raw?['closedDeals'] as List? ?? []).whereType<Map>().toList();
+
+  List<Map> get _linked =>
+      (_raw?['linkedContacts'] as List? ?? []).whereType<Map>().toList();
+
+  // لو الليد ده نفسه linked على ليد أصلي
+  Map? get _linkedTo =>
+      _raw?['linkedTo'] is Map ? _raw!['linkedTo'] as Map : null;
+
+  String _money(dynamic v) => v is num
+      ? v
+            .toStringAsFixed(0)
+            .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',')
+      : '';
+
+  String _pct(dynamic v) => v is num ? '$v%' : '';
+  String _date(dynamic v) => fmtLeadDate(DateTime.tryParse('${v ?? ''}'));
+
+  Future<void> _openLead(String id) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => LeadDetailsScreen(
+          leadId: id,
+          config: widget.config,
+          allowAssignTeamLeader: widget.allowAssignTeamLeader,
+          teamOwnerId: widget.teamOwnerId,
+          teamOwnerIsManager: widget.teamOwnerIsManager,
+          teamOwnerName: widget.teamOwnerName,
+          canResetCreationDate: widget.canResetCreationDate,
+          useUserLookup: widget.useUserLookup,
+        ),
+      ),
+    );
+    if (changed == true) {
+      _changed = true;
+      await _load();
+    }
+  }
+
+  Future<void> _addDeal() async {
+    final lead = _item;
+    if (lead == null) return;
+
+    if (_stages.isEmpty) await _loadStages();
+    final dealStages = [
+      for (final s in _stages.where((s) => s.isDeal))
+        StageOpt(s.id, s.name, s.color, isDeal: true),
+    ];
+    if (dealStages.isEmpty) {
+      _snack('No deal stages found', error: true);
+      return;
+    }
+
+    final r = await showAddDealSheet(
+      context,
+      dealStages: dealStages,
+      projects: [for (final o in _projects) (id: o.id, name: o.name)],
+      defaultStageId: lead.stageId,
+    );
+    if (r == null || !mounted) return;
+
+    try {
+      await _leads.addDeal(
+        lead.id,
+        mode: r.mode == DealMode.merge ? 'merge' : 'newContact',
+        stageId: r.stageId,
+        deal: r.deal,
+        contact: r.contact,
+      );
+      _changed = true;
+      _snack(
+        r.mode == DealMode.merge
+            ? 'Deal added'
+            : 'Deal added to a new linked contact',
+      );
+      await _load(); // يجيب closedDeals + linkedContacts محدثين
+    } catch (e) {
+      _snack(e.toString(), error: true);
+    }
+  }
+
+  // ── Deal widgets ──
+
+  // صف label/value صغير جوه كارت الـ Deal (الفاضي بيتشال)
+  Widget _dealRow(LdTheme t, String label, String value) {
+    if (value.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 118,
+            child: Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontSize: 9.5,
+                letterSpacing: 0.5,
+                fontWeight: FontWeight.w600,
+                color: t.sub,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: t.text,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dealCard(LdTheme t, Map d) {
+    final full = _cfg.canSeeDealDetails; // الأدمن بس بيشوف كل التفاصيل
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: t.card,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.gold.withOpacity(0.25)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // الهيدر: الوحدة + الـ stage
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${d['unitNumber'] ?? '-'} • ${d['unitType'] ?? ''}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14.5,
+                      color: t.text,
+                    ),
+                  ),
+                ),
+                if (d['stage'] is Map)
+                  Text(
+                    ldS(d['stage']),
+                    style: TextStyle(
+                      color: ldHex((d['stage'] as Map)['color']?.toString()),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              ldS(d['project']),
+              style: TextStyle(fontSize: 12.5, color: t.text),
+            ),
+            const SizedBox(height: 6),
+
+            if (!full) ...[
+              // العرض المختصر لباقي الـ roles
+              Text(
+                'Price ${_money(d['unitPrice'])}',
+                style: TextStyle(fontSize: 12.5, color: t.text),
+              ),
+              if ('${d['contactName'] ?? ''}'.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'For: ${d['contactName']}',
+                    style: TextStyle(fontSize: 12, color: t.text),
+                  ),
+                ),
+            ] else ...[
+              // كل البيانات للأدمن
+              Divider(height: 18, color: t.border),
+              _dealRow(t, 'Developer', ldS(d['developer'])),
+              _dealRow(t, 'Closed by (Sales)', ldPersonName(d['sales'])),
+              _dealRow(t, 'Unit price', _money(d['unitPrice'])),
+              _dealRow(t, 'Amount paid', _money(d['amountPaid'])),
+              _dealRow(t, 'Commission %', _pct(d['companyCommissionRatio'])),
+              _dealRow(t, 'Commission', _money(d['companyCommissionMoney'])),
+              _dealRow(t, 'Cashback %', _pct(d['cashbackRatio'])),
+              _dealRow(t, 'Cashback', _money(d['cashbackMoney'])),
+              _dealRow(t, 'Net commission', _money(d['netCommission'])),
+              _dealRow(
+                t,
+                'Closed at',
+                d['closedAt'] == null ? '' : _date(d['closedAt']),
+              ),
+              if ('${d['contactName'] ?? ''}'.isNotEmpty ||
+                  '${d['contactPhone'] ?? ''}'.isNotEmpty) ...[
+                _dealRow(t, 'Contact name', '${d['contactName'] ?? ''}'),
+                _dealRow(
+                  t,
+                  'Contact phone',
+                  '${d['contactPhoneCountryCode'] ?? ''} ${d['contactPhone'] ?? ''}'
+                      .trim(),
+                ),
+              ],
+              Divider(height: 18, color: t.border),
+              _dealRow(t, 'Added by', ldPersonName(d['addedBy'])),
+              _dealRow(
+                t,
+                'Created',
+                d['createdAt'] == null ? '' : _date(d['createdAt']),
+              ),
+              if (d['editedBy'] != null) ...[
+                _dealRow(t, 'Edited by', ldPersonName(d['editedBy'])),
+                _dealRow(
+                  t,
+                  'Edited at',
+                  d['editedAt'] == null ? '' : _date(d['editedAt']),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dealsSection(LdTheme t) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LdSectionTitle(
+          'Deals (${_deals.length})',
+          trailing: _cfg.canAddDeal
+              ? TextButton.icon(
+                  onPressed: _addDeal,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add deal'),
+                  style: TextButton.styleFrom(foregroundColor: t.accent),
+                )
+              : null,
+        ),
+        for (final d in _deals) _dealCard(t, d),
+      ],
+    );
+  }
+
+  Widget _linkedSection(LdTheme t) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LdSectionTitle('Linked Contacts (${_linked.length})'),
+        for (final c in _linked)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _openLead('${c['_id']}'),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: t.card,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: t.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.link_rounded, size: 20, color: t.accent),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${c['name'] ?? ''}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                              color: t.text,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${c['phoneCountryCode'] ?? ''} ${c['phone'] ?? ''}'
+                            '${c['currentStage'] is Map ? '  •  ${ldS(c['currentStage'])}' : ''}',
+                            style: TextStyle(fontSize: 12.5, color: t.sub),
+                          ),
+                          // deals بتاعة الـ contact ده
+                          for (final d
+                              in (c['closedDeals'] as List? ?? [])
+                                  .whereType<Map>())
+                            Text(
+                              '${d['unitNumber'] ?? ''} • ${_money(d['unitPrice'])}',
+                              style: TextStyle(fontSize: 12, color: t.text),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded, color: t.sub),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // لو الليد ده نفسه linked على ليد أصلي
+  Widget _linkedToBanner(LdTheme t) {
+    final o = _linkedTo!;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _openLead('${o['_id']}'),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.gold.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.link_rounded, size: 18, color: t.text),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Linked to ${ldS(o)} (tap to open)',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: t.text,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -131,7 +527,9 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     super.initState();
     _item = widget.initial;
     _load();
-    if (_cfg.canChangeStage || _cfg.canComment) _loadStages();
+    if (_cfg.canChangeStage || _cfg.canComment || _cfg.canAddDeal) {
+      _loadStages(); // canAddDeal عشان زرار Add deal محتاج الـ stages
+    }
   }
 
   // id → name للـ projects / campaigns / channel الموجودين في الـ lead
@@ -172,7 +570,6 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       if (mounted) setState(() => _error = e.toString());
     }
   }
-  // للـ debugPrint
 
   Future<void> _loadStages() async {
     // 1) الـ stages لوحدها، من غير ما تستنى أي حاجة تانية
@@ -193,7 +590,6 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           .toList();
       if (mounted) setState(() => _stages = list);
     } catch (e, st) {
-      // مهم: نشوف الـ error الحقيقي في الـ console
       debugPrint('❌ load stages failed: $e\n$st');
     }
 
@@ -228,7 +624,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     final lead = _item;
     if (lead == null) return;
 
-    // 👈 الـ non-admin محتاج الـ stages عشان يقدر يبعت، فنحاول تاني لو فشلت
+    // الـ non-admin محتاج الـ stages عشان يقدر يبعت، فنحاول تاني لو فشلت
     if (!_cfg.canCommentWithoutStage && _stages.isEmpty) await _loadStages();
     if (!_cfg.canCommentWithoutStage && _stages.isEmpty) {
       _snack('Could not load stages, try again', error: true);
@@ -241,7 +637,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       leadName: lead.name,
       lastComment: _comments.isEmpty ? null : _comments.first,
       currentStageId: lead.stageId,
-      canSkipStage: _cfg.canCommentWithoutStage, // 👈
+      canSkipStage: _cfg.canCommentWithoutStage,
       stages: [
         for (final s in _stages)
           StageOpt(s.id, s.name, s.color, isDeal: s.isDeal),
@@ -297,9 +693,9 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     final lead = _item;
     if (lead == null) return;
 
-    final current = _currentSalesIds; // 👈 السيلز الحاليين قبل ما الشيت يفتح
+    final cur = _currentSales;
+    final current = cur.ids;
 
-    // خيارات الـ history: لازم الـ config يسمح + الـ API يديك الصلاحية
     final canHistory =
         _cfg.allowHistoryOptions &&
         (_raw?['permissions'] as Map?)?['canClearHistory'] == true;
@@ -311,14 +707,24 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       count: 1,
       showHistoryOptions: canHistory,
       currentIds: current,
+      currentNames: cur.names,
       stages: canHistory
           ? [
               for (final s in _stages)
                 StageOpt(s.id, s.name, s.color, isDeal: s.isDeal),
             ]
           : const [],
+      // 👇 نفس اللي في LeadsScreen
+      allowTeamLeader: widget.allowAssignTeamLeader,
+      allowResetCreationDate: widget.canResetCreationDate,
+      teamOwnerId: widget.teamOwnerId,
+      teamOwnerName: widget.teamOwnerName,
+      teamOwnerIsManager: widget.teamOwnerIsManager,
+      allowAddToCurrent: widget.teamOwnerId == null,
+      useUserLookup: widget.useUserLookup,
     );
     if (r == null || !mounted) return;
+    // ... باقي الدالة (bulkAssignActions) زي ما هي
     try {
       await _leads.bulkAssignActions(
         [lead.id],
@@ -346,7 +752,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => AllCommentsScreen(
-          canSkipStage: _cfg.canCommentWithoutStage, // 👈
+          canSkipStage: _cfg.canCommentWithoutStage,
           lead: lead,
           canComment: _cfg.canComment,
           stages: [
@@ -495,7 +901,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
             ? () => showLdSubmissionsSheet(
                 context,
                 (j['allVersions'] as List? ?? []).whereType<Map>().toList(),
-                names: _idNames, // 👈 الأسماء
+                names: _idNames,
               )
             : null,
       ),
@@ -508,7 +914,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
               r.value.trim().isNotEmpty &&
               !_cfg.hiddenRows.contains(r.label) &&
               (r.label != 'Total Submissions' || _cfg.canSeeSubmissions) &&
-              // 👈 Added By للـ admin بس
+              // Added By للـ admin بس
               (r.label != 'Added By' || _cfg.canSeeHistory),
         )
         .toList();
@@ -546,7 +952,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
 
     final lead = _item!;
 
-    // 👈 كل الـ history sections للـ admin بس
+    // كل الـ history sections للـ admin بس
     final history = (_cfg.canSeeHistory && _cfg.showAssignHistory)
         ? _assignHistory
         : const <LdAssignEntry>[];
@@ -562,6 +968,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     final creationHistory = canSeeCreation
         ? _creationHistory
         : const <LdTimelineEntry>[];
+
     // الأزرار السريعة حسب الصلاحيات
     final actions = <Widget>[
       if (_cfg.canChangeStage)
@@ -595,6 +1002,9 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
         children: [
           LdHeader(item: lead, onBack: _back, canCall: _cfg.canCall),
 
+          // لو الليد ده linked على ليد أصلي
+          if (_linkedTo != null) _linkedToBanner(t),
+
           if (_error != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -624,11 +1034,17 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           // ── Lead info ──
           const LdSectionTitle('Lead Information'),
           LdInfoCard(rows: _rows, onCopied: () => _snack('Copied')),
+
           // ── Questions & Answers (بتظهر بس لو فيه داتا) ──
           if (lead.qa.isNotEmpty) ...[
             const LdSectionTitle('Questions & Answers'),
             LdQACard(items: lead.qa),
           ],
+
+          // ── Deals + Linked contacts ──
+          if (_deals.isNotEmpty) _dealsSection(t),
+          if (_linked.isNotEmpty) _linkedSection(t),
+
           // ── Assign history ──
           if (history.isNotEmpty) ...[
             const LdSectionTitle('Assign History'),

@@ -192,17 +192,20 @@ class FilterChipButton extends StatelessWidget {
 class StatTile extends StatelessWidget {
   final String label, value;
   final IconData icon;
+  final VoidCallback? onTap; // 👈
   const StatTile({
     super.key,
     required this.label,
     required this.value,
     required this.icon,
+    this.onTap, // 👈
   });
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
       padding: const EdgeInsets.all(10),
+      onTap: onTap,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -237,7 +240,8 @@ class StatTile extends StatelessWidget {
 class StatItem {
   final String label, value;
   final IconData icon;
-  const StatItem(this.label, this.value, this.icon);
+  final VoidCallback? onTap; // 👈
+  const StatItem(this.label, this.value, this.icon, {this.onTap});
 }
 
 class StatGrid extends StatelessWidget {
@@ -262,7 +266,12 @@ class StatGrid extends StatelessWidget {
       childAspectRatio: aspect,
       children: [
         for (final i in items)
-          StatTile(label: i.label, value: i.value, icon: i.icon),
+          StatTile(
+            label: i.label,
+            value: i.value,
+            icon: i.icon,
+            onTap: i.onTap,
+          ),
       ],
     );
   }
@@ -791,55 +800,61 @@ class MiniStat extends StatelessWidget {
   final IconData icon;
   final String label, value;
   final bool gold;
+  final VoidCallback? onTap;
   const MiniStat({
     super.key,
     required this.icon,
     required this.label,
     required this.value,
     this.gold = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = isDarkOf(context);
     final Color accent = gold ? AppColors.gold : accentOf(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: accent.withOpacity(isDark ? 0.12 : 0.09),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: accent),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white70 : AppColors.textSecondary,
-              ),
-            ),
-          ),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14), // 👈 نفس radius الـ Container
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: accent.withOpacity(isDark ? 0.12 : 0.09),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: accent),
+            const SizedBox(width: 8),
+            Expanded(
               child: Text(
-                value,
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: valueColorOf(context),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white70 : AppColors.textSecondary,
                 ),
               ),
             ),
-          ),
-        ],
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: valueColorOf(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

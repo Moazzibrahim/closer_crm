@@ -1,6 +1,6 @@
 // auth_service.dart
 // Login + إدارة المستخدمين (Admin) + تغيير الباسورد + الجلسات.
-// ignore_for_file: use_null_aware_elements
+// ignore_for_file: use_null_aware_elements, avoid_print
 
 import 'package:dio/dio.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
@@ -48,18 +48,52 @@ class AuthService {
   }
 
   /// best effort: لازم تتنادى قبل مسح الـ token (الـ interceptor بيقراه من SharedPreferences)
-  Future<void> logoutRemote() async {
-    // timeout على الريكويست نفسه، عشان Render cold start ما يعلقش الخروج
+  Future<void> logoutRemote({
+    String? fcmToken,
+    required String deviceId,
+  }) async {
     final opts = Options(
       sendTimeout: const Duration(seconds: 5),
       receiveTimeout: const Duration(seconds: 5),
     );
+    if (fcmToken != null) {
+      try {
+        await _dio.delete(
+          Endpoints.fcmToken,
+          data: {'fcmToken': fcmToken},
+          options: opts,
+        );
+      } catch (e) {
+        print('delete fcm failed: $e');
+      }
+    }
     try {
-      await _dio.delete(Endpoints.fcmToken, options: opts);
-    } catch (_) {}
+      await _dio.delete(
+        Endpoints.logout,
+        data: {'deviceId': deviceId},
+        options: opts,
+      );
+    } catch (e) {
+      print('logout failed: $e');
+    }
+  }
+
+  /// تحديث الـ FCM token للجلسة الحالية (بعد refresh أو بعد فتح التطبيق)
+  Future<void> updateFcmToken({
+    required String fcmToken,
+    String? deviceId,
+  }) async {
     try {
-      await _dio.post(Endpoints.logout, options: opts);
-    } catch (_) {}
+      await _dio.put(
+        Endpoints.fcmToken,
+        data: {
+          'fcmToken': fcmToken,
+          if (deviceId != null) 'deviceId': deviceId,
+        },
+      );
+    } catch (e) {
+      throw DioClient.parse(e);
+    }
   }
   // ---------------- Users ----------------
 

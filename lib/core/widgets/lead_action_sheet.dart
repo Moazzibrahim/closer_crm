@@ -191,6 +191,320 @@ Future<bool> showDeleteLeadsDialog(
 }
 
 // ─────────────────────────────────────────────
+//  5) Add another deal (merge / newContact)
+// ─────────────────────────────────────────────
+enum DealMode { merge, newContact }
+
+class AddDealResult {
+  final DealMode mode;
+  final String stageId;
+  final Map<String, dynamic> deal;
+  final Map<String, dynamic>? contact; // newContact بس
+  const AddDealResult({
+    required this.mode,
+    required this.stageId,
+    required this.deal,
+    this.contact,
+  });
+}
+
+Future<AddDealResult?> showAddDealSheet(
+  BuildContext context, {
+  required List<StageOpt> dealStages, // الـ stages اللي isDeal بس
+  required List<({String id, String name})> projects,
+  String? defaultStageId,
+  String defaultCountryCode = '+971',
+}) {
+  return _showSheet<AddDealResult>(
+    context,
+    (_) => _AddDealSheet(
+      dealStages: dealStages,
+      projects: projects,
+      defaultStageId: defaultStageId,
+      defaultCountryCode: defaultCountryCode,
+    ),
+  );
+}
+
+class _AddDealSheet extends StatefulWidget {
+  final List<StageOpt> dealStages;
+  final List<({String id, String name})> projects;
+  final String? defaultStageId;
+  final String defaultCountryCode;
+  const _AddDealSheet({
+    required this.dealStages,
+    required this.projects,
+    this.defaultStageId,
+    required this.defaultCountryCode,
+  });
+
+  @override
+  State<_AddDealSheet> createState() => _AddDealSheetState();
+}
+
+class _AddDealSheetState extends State<_AddDealSheet> {
+  DealMode _mode = DealMode.merge;
+  StageOpt? _stage;
+  String? _projectId;
+  DateTime? _closedAt;
+
+  final _price = TextEditingController();
+  final _unitType = TextEditingController();
+  final _unitNumber = TextEditingController();
+  final _commission = TextEditingController();
+  final _cashback = TextEditingController();
+  final _paid = TextEditingController();
+
+  // contact (newContact)
+  final _cName = TextEditingController();
+  final _cEmail = TextEditingController();
+  final _cPhone = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // الـ stage الافتراضي = stage آخر deal أو أول deal stage
+    _stage = widget.dealStages.cast<StageOpt?>().firstWhere(
+      (s) => s!.id == widget.defaultStageId,
+      orElse: () =>
+          widget.dealStages.isNotEmpty ? widget.dealStages.first : null,
+    );
+  }
+
+  @override
+  void dispose() {
+    for (final c in [
+      _price,
+      _unitType,
+      _unitNumber,
+      _commission,
+      _cashback,
+      _paid,
+      _cName,
+      _cEmail,
+      _cPhone,
+    ]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  num? _n(TextEditingController c) => num.tryParse(c.text.trim());
+
+  // ⚠️ الباك بيرفض لو commission/cashback ناقصين (400)، فبنطلبهم هنا
+  bool get _dealValid =>
+      _stage != null &&
+      _projectId != null &&
+      (_n(_price) ?? 0) > 0 &&
+      _unitType.text.trim().isNotEmpty &&
+      _unitNumber.text.trim().isNotEmpty &&
+      _n(_commission) != null &&
+      _n(_cashback) != null;
+
+  bool get _contactValid =>
+      _mode == DealMode.merge ||
+      (_cName.text.trim().isNotEmpty && _cPhone.text.trim().length >= 4);
+
+  void _submit() {
+    Navigator.of(context).pop(
+      AddDealResult(
+        mode: _mode,
+        stageId: _stage!.id,
+        deal: {
+          'project': _projectId,
+          'unitPrice': _n(_price),
+          'unitType': _unitType.text.trim(),
+          'unitNumber': _unitNumber.text.trim(),
+          'companyCommissionRatio': _n(_commission),
+          'cashbackRatio': _n(_cashback),
+          if (_n(_paid) != null) 'amountPaid': _n(_paid),
+          if (_closedAt != null)
+            'closedAt': _closedAt!.toUtc().toIso8601String(),
+        },
+        contact: _mode == DealMode.newContact
+            ? {
+                'name': _cName.text.trim(),
+                if (_cEmail.text.trim().isNotEmpty)
+                  'email': _cEmail.text.trim(),
+                'phoneCountryCode': widget.defaultCountryCode,
+                'phone': _cPhone.text.trim(),
+              }
+            : null,
+      ),
+    );
+  }
+
+  Widget _field(
+    _Pal p,
+    TextEditingController c,
+    String label,
+    String hint, {
+    bool number = false,
+    TextInputType? type,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _FieldLabel(label),
+          TextField(
+            controller: c,
+            onChanged: (_) => setState(() {}),
+            keyboardType:
+                type ??
+                (number
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text),
+            inputFormatters: number
+                ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))]
+                : null,
+            style: TextStyle(color: p.text, fontSize: 14.5),
+            cursorColor: p.accent,
+            decoration: _fieldDecoration(p, hint: hint),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Pal.of(context);
+    final ok = _dealValid && _contactValid;
+
+    return _SheetFrame(
+      title: 'Add another deal',
+      subtitle: _mode == DealMode.merge
+          ? 'Added to the same lead'
+          : 'Creates a new linked contact',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Segmented(
+                    labels: const ['Same lead', 'New contact (linked)'],
+                    index: _mode == DealMode.merge ? 0 : 1,
+                    onChanged: (i) => setState(
+                      () =>
+                          _mode = i == 0 ? DealMode.merge : DealMode.newContact,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ── Contact (newContact بس) ──
+                  if (_mode == DealMode.newContact) ...[
+                    _field(p, _cName, 'Contact name *', 'Rami Qasim'),
+                    _field(
+                      p,
+                      _cPhone,
+                      'Phone * (${widget.defaultCountryCode})',
+                      '552223344',
+                      number: true,
+                      type: TextInputType.phone,
+                    ),
+                    _field(
+                      p,
+                      _cEmail,
+                      'Email',
+                      'optional',
+                      type: TextInputType.emailAddress,
+                    ),
+                  ],
+
+                  // ── Stage (deal stages بس) ──
+                  const _FieldLabel('Deal stage *'),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final s in widget.dealStages)
+                        ChoiceChip(
+                          label: Text(s.name),
+                          selected: _stage?.id == s.id,
+                          onSelected: (_) => setState(() => _stage = s),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // ── Deal details ──
+                  const _FieldLabel('Project *'),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: DropdownButtonFormField<String>(
+                      value: _projectId,
+                      isExpanded: true,
+                      dropdownColor: p.surface,
+                      style: TextStyle(color: p.text, fontSize: 14.5),
+                      decoration: _fieldDecoration(
+                        p,
+                        hint: 'Select project',
+                        icon: Icons.apartment_rounded,
+                      ),
+                      items: [
+                        for (final pr in widget.projects)
+                          DropdownMenuItem(
+                            value: pr.id,
+                            child: Text(
+                              pr.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (v) => setState(() => _projectId = v),
+                    ),
+                  ),
+                  _field(p, _price, 'Unit price *', '2000000', number: true),
+                  _field(p, _unitType, 'Unit type *', '3BR / Apartment'),
+                  _field(p, _unitNumber, 'Unit number *', 'B-305'),
+                  _field(
+                    p,
+                    _commission,
+                    'Company commission % *',
+                    '3',
+                    number: true,
+                  ),
+                  _field(p, _cashback, 'Cashback % *', '2', number: true),
+                  _field(p, _paid, 'Amount paid', '100000', number: true),
+                  const _FieldLabel('Closed at'),
+                  _DateTile(
+                    icon: Icons.event_rounded,
+                    text: _closedAt == null ? 'Now' : _fmtDate(_closedAt!),
+                    onTap: () async {
+                      final d = await showDatePicker(
+                        context: context,
+                        initialDate: _closedAt ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2050),
+                      );
+                      if (d != null) setState(() => _closedAt = d);
+                    },
+                    onClear: _closedAt == null
+                        ? null
+                        : () => setState(() => _closedAt = null),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _PrimaryButton(
+            label: ok ? 'Add deal' : 'Fill the required fields',
+            onPressed: ok ? _submit : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
 //  Palette helper
 // ─────────────────────────────────────────────
 class _Pal {

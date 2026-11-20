@@ -67,12 +67,14 @@ class FollowBucket {
 }
 
 class OverdueLead {
+  final String id; // 👈 جديد
   final String name, stageName;
   final List<String> salesNames;
   final DateTime? dueAt;
   final Color stageColor;
 
   OverdueLead._(
+    this.id, // 👈
     this.name,
     this.stageName,
     this.salesNames,
@@ -86,7 +88,9 @@ class OverdueLead {
     final st = j['stage'];
     final stMap = st is Map ? st : null;
     final sales = j['salesNames'] ?? j['sales'];
+    debugPrint('overdue json: $j');
     return OverdueLead._(
+      '${j['_id'] ?? j['id'] ?? j['leadId'] ?? ''}', // 👈
       '${j['name'] ?? j['leadName'] ?? ''}',
       '${j['stageName'] ?? stMap?['name'] ?? (st is String ? st : '')}',
       [
@@ -125,7 +129,7 @@ class FollowUpsData {
 //  Deals
 // ─────────────────────────────────────────────
 class DealsData {
-  final int deals, clients;
+  final int deals, clients, linkedDeals, linkedContacts; //
   final double value, commission, cashback, net;
   final List<int> years;
   final List<BarPoint> timeline;
@@ -133,6 +137,8 @@ class DealsData {
   DealsData.fromJson(Map<String, dynamic> j)
     : deals = _i(j['totals']?['deals']),
       clients = _i(j['totals']?['clients']),
+      linkedDeals = _i(j['totals']?['linkedDeals']), // 👈
+      linkedContacts = _i(j['totals']?['linkedContacts']),
       value = _d(j['totals']?['value']),
       commission = _d(j['totals']?['commission']),
       cashback = _d(j['totals']?['cashback']),

@@ -25,7 +25,7 @@ class ManagerLeadsScreen extends StatelessWidget {
       teamOwnerIsManager: true, // myTeam بيبعت manager=<id>
       canChangeStage: false, // زي التيم ليدر، غيّرها لو عايز
       canDelete: false, // trash/restore مسموحين للمانجر
-      detailsConfig: LeadDetailsConfig.sales,
+      detailsConfig: LeadDetailsConfig.manager,
     );
   }
 }

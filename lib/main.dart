@@ -127,6 +127,7 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
 
   // الـ theme بيتبني مرة واحدة بدل ما يتبني مع كل build
   final ThemeData _theme = _buildTheme();
+  late final AuthProvider _authProvider = AuthProvider(AuthService());
 
   @override
   void initState() {
@@ -153,6 +154,7 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
     _subs.add(
       messaging.onTokenRefresh.listen((newToken) {
         debugPrint('FCM TOKEN REFRESHED: $newToken');
+        _authProvider.syncFcmToken(newToken); // 👈 جديد
       }),
     );
 
@@ -184,6 +186,7 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
       sub.cancel();
     }
     _subs.clear();
+    _authProvider.dispose(); // 👈 جديد
     super.dispose();
   }
 
@@ -191,10 +194,8 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider(AuthService())),
+        ChangeNotifierProvider.value(value: _authProvider), // 👈 بدل create
         ChangeNotifierProvider(create: (_) => CrmSettingsProvider()),
-        // providers الـ features (Leads, Users, ...) مكانها MainShell مش هنا،
-        // عشان تتقفل تلقائي مع الـ logout.
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

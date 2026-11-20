@@ -9,6 +9,7 @@ import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/main_shell.dart';
 import 'package:flutter_application_1/core/widgets/dashboard_widget.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
+import 'package:flutter_application_1/features/leads/presentation/screens/lead_details_screen_master.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';
 import 'package:flutter_application_1/features/marketer/data/marketer_dashboard_model.dart';
 import 'package:flutter_application_1/features/marketer/presentation/screens/marketer_leads_screen.dart';
@@ -224,7 +225,10 @@ class _Header extends StatelessWidget {
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const NotificationsScreen(),
+                                builder: (_) => const NotificationsScreen(
+                                  detailsConfig: LeadDetailsConfig.marketer,
+                                  useUserLookup: true,
+                                ),
                               ),
                             );
                             NotificationBadge.refresh();

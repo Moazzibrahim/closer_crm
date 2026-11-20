@@ -1,15 +1,14 @@
 // lib/features/marketer/provider/marketing_dashboard_provider.dart
 // Provider (ChangeNotifier) للداشبورد: فلتر التاريخ + فلتر الـ channel.
-// ملاحظة: بيستخدم package:http + التوكن من SharedPreferences.
-// لو عندك ApiClient/CrudService جاهز، بدّل جوه _fetch() بس.
+// بيستخدم DioClient (التوكن والـ baseUrl بيتضافوا تلقائي من الـ interceptor).
 
-import 'dart:convert';
+// ignore_for_file: use_null_aware_elements
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
+import 'package:flutter_application_1/core/utils/dio_client.dart';
 import 'package:flutter_application_1/features/marketer/data/marketer_dashboard_model.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 const _tz = 'Asia/Dubai';
 
@@ -35,17 +34,29 @@ class MarketingDashboardProvider extends ChangeNotifier {
   bool loading = false;
   String? error;
 
+  // بنحتفظ بـ token للطلب الحالي عشان نتجاهل الردود القديمة (race condition)
+  int _requestId = 0;
+
   Future<void> load() async {
+    final myId = ++_requestId;
     loading = true;
     error = null;
     notifyListeners();
     try {
-      data = await _fetch();
+      final result = await _fetch();
+      if (myId != _requestId) return; // اتبعت طلب أحدث، تجاهل ده
+      data = result;
+    } on ApiException catch (e) {
+      if (myId != _requestId) return;
+      error = e.message;
     } catch (e) {
-      error = e.toString().replaceFirst('Exception: ', '');
+      if (myId != _requestId) return;
+      error = e.toString();
     } finally {
-      loading = false;
-      notifyListeners();
+      if (myId == _requestId) {
+        loading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -66,36 +77,34 @@ class MarketingDashboardProvider extends ChangeNotifier {
   }
 
   Future<MarketingData> _fetch() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(ApiConfig.tokenKey);
-
-    final qp = <String, String>{
+    final qp = <String, dynamic>{
       'tz': _tz,
       if (range != null) 'from': _iso(range!.start),
       if (range != null) 'to': _iso(range!.end, endOfDay: true),
       if (channelId != null) 'channel': channelId!,
     };
-    // replace(queryParameters) بيعمل encode للـ + في الـ offset تلقائي
-    final uri = Uri.parse(
-      '${ApiConfig.api}${Endpoints.dashboardMarketing}',
-    ).replace(queryParameters: qp);
 
-    final res = await http
-        .get(
-          uri,
-          headers: {
-            'Accept': 'application/json',
-            if (token != null) 'Authorization': 'Bearer $token',
-          },
-        )
-        .timeout(ApiConfig.receiveTimeout);
+    try {
+      // Dio بيعمل encode للـ + في الـ offset تلقائي
+      final res = await DioClient.instance.dio.get(
+        Endpoints.dashboardMarketing,
+        queryParameters: qp,
+        options: Options(headers: {'Accept': 'application/json'}),
+      );
 
-    final body = jsonDecode(res.body);
-    if (res.statusCode >= 200 && res.statusCode < 300 && body['data'] != null) {
-      return MarketingData.fromJson(body['data'] as Map<String, dynamic>);
+      final body = res.data;
+      if (body is Map && body['data'] != null) {
+        return MarketingData.fromJson(body['data'] as Map<String, dynamic>);
+      }
+      throw ApiException(
+        body is Map
+            ? (body['message'] ?? 'Failed to load').toString()
+            : 'Failed to load',
+        statusCode: res.statusCode,
+      );
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw DioClient.parse(e);
     }
-    throw Exception(
-      body is Map ? (body['message'] ?? 'Failed to load') : 'Failed to load',
-    );
   }
 }

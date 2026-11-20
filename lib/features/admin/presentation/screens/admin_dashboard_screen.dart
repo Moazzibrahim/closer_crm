@@ -8,6 +8,7 @@ import 'package:flutter_application_1/core/widgets/dashboard_widget.dart';
 import 'package:flutter_application_1/features/admin/data/admin_dashboard_model.dart';
 import 'package:flutter_application_1/features/admin/providers/dashboard_provider.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
+import 'package:flutter_application_1/features/leads/presentation/screens/lead_details_screen_master.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';
 import 'package:flutter_application_1/features/notifications/presentation/notifications_screen.dart';
 import 'package:flutter_application_1/features/notifications/provider/notifications_provider.dart';
@@ -347,6 +348,15 @@ class _HeroCard extends StatelessWidget {
             ? '—'
             : '${f.count} · ${f.percent.toStringAsFixed(1)}%',
         gold: true,
+        onTap: () {
+          final salesId = context.read<DashboardProvider>().sales?.id;
+          context.read<ShellProvider>().openLeads(
+            LeadsFilters(
+              noStage: true,
+              sales: salesId == null ? null : [salesId],
+            ),
+          );
+        },
       );
     }
 
@@ -367,46 +377,49 @@ class _HeroCard extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: AppColors.navy.withOpacity(isDark ? 0.5 : 0.08),
-                  borderRadius: BorderRadius.circular(14),
+          InkWell(
+            onTap: () => _openFollowUpLeads(context),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.navy.withOpacity(isDark ? 0.5 : 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.group_rounded, color: accentOf(context)),
                 ),
-                child: Icon(Icons.group_rounded, color: accentOf(context)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 10,
-                        letterSpacing: 0.8,
-                        fontWeight: FontWeight.w600,
-                        color: labelColorOf(context),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                          fontWeight: FontWeight.w600,
+                          color: labelColorOf(context),
+                        ),
                       ),
-                    ),
-                    Text(
-                      total,
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        height: 1.15,
-                        color: valueColorOf(context),
+                      Text(
+                        total,
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          height: 1.15,
+                          color: valueColorOf(context),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           Row(
@@ -418,6 +431,7 @@ class _HeroCard extends StatelessWidget {
                   icon: Icons.schedule_rounded,
                   label: 'Late',
                   value: late,
+                  onTap: () => _openFollowUpLeads(context, late: true),
                 ),
               ),
             ],
@@ -536,6 +550,7 @@ class _StageCard extends StatelessWidget {
     );
   }
 }
+
 // ─────────────────────────────────────────────
 //  Sales filter chip (All sales / اسم السيلز)
 // ─────────────────────────────────────────────
@@ -721,6 +736,23 @@ void _openFollowUpLeads(
   );
 }
 
+void _openLinkedLeads(BuildContext context) {
+  context.read<ShellProvider>().openLeads(LeadsFilters(linkedDeals: true));
+}
+
+Future<void> _openLeadDetails(BuildContext context, String leadId) async {
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) =>
+          LeadDetailsScreen(leadId: leadId, config: LeadDetailsConfig.admin),
+    ),
+  );
+  if (context.mounted) {
+    context.read<DashboardProvider>().load(); // يحدّث الأرقام
+  }
+}
+
 String _lateText(DateTime? d) {
   if (d == null) return '';
   final days = DateTime.now().difference(d).inDays;
@@ -844,6 +876,9 @@ class _FollowUpsSection extends StatelessWidget {
                     trailing: _lateText(l.dueAt),
                     dotColor: l.stageColor,
                     trailingColor: _kRed,
+                    onTap: l.id.isEmpty
+                        ? null
+                        : () => _openLeadDetails(context, l.id), // 👈
                   ),
               ],
             ),
@@ -861,6 +896,11 @@ class _FollowUpsSection extends StatelessWidget {
                     trailing: '${s.late} late',
                     icon: Icons.person_rounded,
                     trailingColor: _kRed,
+                    onTap: s.id.isEmpty
+                        ? null
+                        : () => context.read<ShellProvider>().openLeads(
+                            LeadsFilters(lateFollowUp: true, sales: [s.id]),
+                          ),
                   ),
               ],
             ),
@@ -928,6 +968,18 @@ class _DealsSection extends StatelessWidget {
                   'Net',
                   formatMoney(d.totals.net),
                   Icons.account_balance_wallet_rounded,
+                ),
+                StatItem(
+                  'Linked deals',
+                  '${d.totals.linkedDeals}',
+                  Icons.link_rounded,
+                  onTap: () => _openLinkedLeads(context),
+                ),
+                StatItem(
+                  'Linked contacts',
+                  '${d.totals.linkedContacts}',
+                  Icons.person_add_alt_1_rounded,
+                  onTap: () => _openLinkedLeads(context),
                 ),
               ],
             ),

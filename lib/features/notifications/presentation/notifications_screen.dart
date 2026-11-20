@@ -6,7 +6,24 @@ import 'package:flutter_application_1/features/notifications/provider/notificati
 import 'package:provider/provider.dart';
 
 class NotificationsScreen extends StatelessWidget {
-  const NotificationsScreen({super.key});
+  final LeadDetailsConfig detailsConfig;
+  final bool allowAssignTeamLeader;
+  final String? teamOwnerId;
+  final bool teamOwnerIsManager;
+  final String? teamOwnerName;
+  final bool canResetCreationDate;
+  final bool useUserLookup;
+
+  const NotificationsScreen({
+    super.key,
+    this.detailsConfig = LeadDetailsConfig.admin,
+    this.allowAssignTeamLeader = true,
+    this.teamOwnerId,
+    this.teamOwnerIsManager = false,
+    this.teamOwnerName,
+    this.canResetCreationDate = true,
+    this.useUserLookup = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -14,13 +31,37 @@ class NotificationsScreen extends StatelessWidget {
       create: (_) => NotificationsFeedProvider()
         ..load()
         ..markSeen(),
-      child: const _NotificationsView(),
+      child: _NotificationsView(
+        detailsConfig: detailsConfig,
+        allowAssignTeamLeader: allowAssignTeamLeader,
+        teamOwnerId: teamOwnerId,
+        teamOwnerIsManager: teamOwnerIsManager,
+        teamOwnerName: teamOwnerName,
+        canResetCreationDate: canResetCreationDate,
+        useUserLookup: useUserLookup,
+      ),
     );
   }
 }
 
 class _NotificationsView extends StatefulWidget {
-  const _NotificationsView();
+  final LeadDetailsConfig detailsConfig;
+  final bool allowAssignTeamLeader;
+  final String? teamOwnerId;
+  final bool teamOwnerIsManager;
+  final String? teamOwnerName;
+  final bool canResetCreationDate;
+  final bool useUserLookup;
+
+  const _NotificationsView({
+    required this.detailsConfig,
+    required this.allowAssignTeamLeader,
+    required this.teamOwnerId,
+    required this.teamOwnerIsManager,
+    required this.teamOwnerName,
+    required this.canResetCreationDate,
+    required this.useUserLookup,
+  });
 
   @override
   State<_NotificationsView> createState() => _NotificationsViewState();
@@ -95,7 +136,13 @@ class _NotificationsViewState extends State<_NotificationsView> {
       MaterialPageRoute(
         builder: (_) => LeadDetailsScreen(
           leadId: r.leadId!,
-          config: LeadDetailsConfig.admin, // 👈 عدّلها حسب الرول
+          config: widget.detailsConfig,
+          allowAssignTeamLeader: widget.allowAssignTeamLeader,
+          teamOwnerId: widget.teamOwnerId,
+          teamOwnerIsManager: widget.teamOwnerIsManager,
+          teamOwnerName: widget.teamOwnerName,
+          canResetCreationDate: widget.canResetCreationDate,
+          useUserLookup: widget.useUserLookup,
         ),
       ),
     );

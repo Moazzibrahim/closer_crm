@@ -19,6 +19,7 @@ import 'package:flutter_application_1/features/crud/presentation/property_type_s
 import 'package:flutter_application_1/features/crud/presentation/regions_screen.dart';
 import 'package:flutter_application_1/features/crud/presentation/stage_type_screen.dart';
 import 'package:flutter_application_1/features/crud/presentation/stages_screen.dart';
+import 'package:flutter_application_1/features/crud/presentation/trash_screen.dart';
 import 'package:flutter_application_1/features/sessions/presentation/sessions_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -135,9 +136,15 @@ List<_MenuGroup> _groups = [
     _MenuItem('Regions', Icons.map_rounded, page: (_) => const RegionsScreen()),
     _MenuItem('Areas', Icons.place_rounded, page: (_) => const AreasScreen()),
   ]),
-  // _MenuGroup('Other', [
-  //   _MenuItem('Trash', Icons.delete_outline_rounded, danger: true),
-  // ]),
+  _MenuGroup('Other', [
+    _MenuItem(
+      'Trash',
+      Icons.delete_outline_rounded,
+      danger: true,
+      adminOnly: true, // 👈 الأدمن بس، والـ menu بيخفيه عن باقي الـ roles
+      page: (_) => const TrashScreen(),
+    ),
+  ]),
 ];
 
 // ─────────────────────────────────────────────

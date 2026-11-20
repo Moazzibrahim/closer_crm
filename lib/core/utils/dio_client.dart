@@ -1,8 +1,11 @@
 // dio_client.dart
-// A single Dio instance for the whole project: automatically adds the Bearer token,
-// and normalizes errors into ApiException so Providers can handle them easily.
+// A single Dio instance for the whole project: automatically adds the Bearer token
+// and the x-device-id header, and normalizes errors into ApiException.
+// ignore_for_file: avoid_print
+
 import 'package:dio/dio.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
+import 'package:flutter_application_1/core/constants/device_helper.dart'; // 👈 جديد
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiException implements Exception {
@@ -35,10 +38,19 @@ class DioClient {
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }
+
+          // 👈 جديد: الباك بيربط الجلسة بالجهاز، وبيرجّع 401 لو الأدمن عمل logout للجهاز ده
+          try {
+            _deviceId ??= await DeviceHelper.getDeviceId();
+            options.headers['x-device-id'] = _deviceId;
+          } catch (_) {
+            // لو فشل، الطلب يكمل من غير الـ header
+          }
+
           handler.next(options);
         },
         onError: (e, handler) {
-          // 401 = token expired; you could log the user out here (e.g. via a stream/callback)
+          // 401 = token expired / device logged out; you could log the user out here
           handler.next(e);
         },
       ),
@@ -47,6 +59,9 @@ class DioClient {
 
   static final DioClient instance = DioClient._internal();
   late final Dio dio;
+
+  // 👈 جديد: بنقراه مرة واحدة ونخزنه، عشان ما نقراش كل request
+  static String? _deviceId;
 
   /// Converts a DioException into a readable message from the backend response (message/error)
   static ApiException parse(Object e) {

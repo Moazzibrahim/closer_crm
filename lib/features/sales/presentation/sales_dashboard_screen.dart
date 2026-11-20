@@ -9,6 +9,7 @@ import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/main_shell.dart';
 import 'package:flutter_application_1/core/widgets/dashboard_widget.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
+import 'package:flutter_application_1/features/leads/presentation/screens/lead_details_screen_master.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';
 import 'package:flutter_application_1/features/manager/presentation/screens/manager_leads_screen.dart';
 import 'package:flutter_application_1/features/notifications/presentation/notifications_screen.dart';
@@ -57,6 +58,14 @@ Widget _leadsFor(SalesDashboardProvider p, LeadsFilters preset) {
   return SalesLeadsScreen(preset: preset);
 }
 
+void _openLinkedLeads(BuildContext context) {
+  final p = context.read<SalesDashboardProvider>();
+  context.read<ShellProvider>().openLeads(
+    LeadsFilters(linkedDeals: true, sales: p.isTeam ? const [] : [p.salesId]),
+    builder: (preset) => _leadsFor(p, preset),
+  );
+}
+
 // ─────────────────────────────────────────────
 //  Stage icons: بتتختار من اسم الـ stage (الأخص الأول)
 // ─────────────────────────────────────────────
@@ -88,6 +97,69 @@ const List<(List<String>, IconData)> _stageIcons = [
   (['pending', 'waiting', 'hold', 'انتظار'], Icons.hourglass_top_rounded),
   (['fresh', 'new', 'جديد'], Icons.fiber_new_rounded),
 ];
+
+typedef _Scope = ({
+  LeadDetailsConfig config,
+  bool allowTL,
+  String? ownerId,
+  bool isManager,
+  String? ownerName,
+  bool canReset,
+});
+
+_Scope _scopeFor(BuildContext context, SalesDashboardProvider p) {
+  final name = context.read<AuthProvider>().name;
+  if (p.isManager) {
+    return (
+      config: LeadDetailsConfig.manager,
+      allowTL: true,
+      ownerId: p.salesId,
+      isManager: true,
+      ownerName: name,
+      canReset: false,
+    );
+  }
+  if (p.isTeam) {
+    return (
+      config: LeadDetailsConfig.teamLeader,
+      allowTL: false,
+      ownerId: p.salesId,
+      isManager: false,
+      ownerName: name,
+      canReset: false,
+    );
+  }
+  return (
+    config: LeadDetailsConfig.sales,
+    allowTL: true,
+    ownerId: null,
+    isManager: false,
+    ownerName: null,
+    canReset: true,
+  );
+}
+
+Future<void> _openLeadDetails(BuildContext context, String leadId) async {
+  final p = context.read<SalesDashboardProvider>();
+  final s = _scopeFor(context, p);
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => LeadDetailsScreen(
+        leadId: leadId,
+        config: s.config,
+        allowAssignTeamLeader: s.allowTL,
+        teamOwnerId: s.ownerId,
+        teamOwnerIsManager: s.isManager,
+        teamOwnerName: s.ownerName,
+        canResetCreationDate: s.canReset,
+      ),
+    ),
+  );
+  if (context.mounted) {
+    context.read<SalesDashboardProvider>().load(); // يحدّث الأرقام
+  }
+}
 
 IconData _stageIcon(String name) {
   final n = name.toLowerCase().replaceAll(RegExp(r'[\s_\-]+'), '');
@@ -229,6 +301,19 @@ class _Header extends StatelessWidget {
   final StagesData? data;
   const _Header({required this.data});
 
+  /// بتبني NotificationsScreen بالـ config وباراميترات الفريق حسب الـ role
+  Widget _notificationsFor(BuildContext context, SalesDashboardProvider p) {
+    final s = _scopeFor(context, p);
+    return NotificationsScreen(
+      detailsConfig: s.config,
+      allowAssignTeamLeader: s.allowTL,
+      teamOwnerId: s.ownerId,
+      teamOwnerIsManager: s.isManager,
+      teamOwnerName: s.ownerName,
+      canResetCreationDate: s.canReset,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = isDarkOf(context);
@@ -266,10 +351,11 @@ class _Header extends StatelessWidget {
                           icon: Icons.notifications_none,
                           badge: n,
                           onTap: () async {
+                            final p = context.read<SalesDashboardProvider>();
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const NotificationsScreen(),
+                                builder: (_) => _notificationsFor(context, p),
                               ),
                             );
                             NotificationBadge.refresh();
@@ -355,44 +441,48 @@ class _HeroCard extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: AppColors.navy.withOpacity(isDark ? 0.5 : 0.08),
-                  borderRadius: BorderRadius.circular(14),
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => _openFollowUpLeads(context), // كل ليدز اليوزر/الفريق
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: AppColors.navy.withOpacity(isDark ? 0.5 : 0.08),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.group_rounded, color: accentOf(context)),
                 ),
-                child: Icon(Icons.group_rounded, color: accentOf(context)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'MY LEADS',
-                      style: TextStyle(
-                        fontSize: 10,
-                        letterSpacing: 0.8,
-                        fontWeight: FontWeight.w600,
-                        color: labelColorOf(context),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'MY LEADS',
+                        style: TextStyle(
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                          fontWeight: FontWeight.w600,
+                          color: labelColorOf(context),
+                        ),
                       ),
-                    ),
-                    Text(
-                      total,
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        height: 1.15,
-                        color: valueColorOf(context),
+                      Text(
+                        total,
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          height: 1.15,
+                          color: valueColorOf(context),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           Row(
@@ -411,6 +501,7 @@ class _HeroCard extends StatelessWidget {
                   icon: Icons.schedule_rounded,
                   label: 'Late',
                   value: late,
+                  onTap: () => _openFollowUpLeads(context, late: true),
                 ),
               ),
             ],
@@ -702,6 +793,7 @@ class _FollowUpsSection extends StatelessWidget {
                     trailing: _lateText(l.dueAt),
                     dotColor: l.stageColor,
                     trailingColor: _kRed,
+                    onTap: () => _openLeadDetails(context, l.id), // 👈
                   ),
               ],
             ),
@@ -747,6 +839,18 @@ class _DealsSection extends StatelessWidget {
               items: [
                 StatItem('Deals', '${d.deals}', Icons.handshake_rounded),
                 StatItem('Clients', '${d.clients}', Icons.groups_rounded),
+                StatItem(
+                  'Linked deals',
+                  '${d.linkedDeals}',
+                  Icons.link_rounded,
+                  onTap: () => _openLinkedLeads(context),
+                ),
+                StatItem(
+                  'Linked contacts',
+                  '${d.linkedContacts}',
+                  Icons.person_add_alt_1_rounded,
+                  onTap: () => _openLinkedLeads(context),
+                ),
                 StatItem('Value', formatMoney(d.value), Icons.payments_rounded),
                 StatItem(
                   'Commission',
@@ -854,10 +958,28 @@ class _DealsFilters extends StatelessWidget {
 // ─────────────────────────────────────────────
 //  Team section (Team Leader فقط)
 // ─────────────────────────────────────────────
-void _openMemberLeads(BuildContext context, String memberId) {
+void _openMemberLeads(
+  BuildContext context,
+  String memberId, {
+  bool late = false,
+  bool today = false,
+  bool fresh = false,
+}) {
   final p = context.read<SalesDashboardProvider>();
+  final now = DateTime.now();
+  final start = DateTime(now.year, now.month, now.day);
+  final end = start
+      .add(const Duration(days: 1))
+      .subtract(const Duration(seconds: 1));
+
   context.read<ShellProvider>().openLeads(
-    LeadsFilters(sales: [memberId]),
+    LeadsFilters(
+      sales: [memberId],
+      lateFollowUp: late,
+      noStage: fresh,
+      followUpFrom: today ? start.toUtc().toIso8601String() : null,
+      followUpTo: today ? end.toUtc().toIso8601String() : null,
+    ),
     builder: (preset) => _leadsFor(p, preset),
   );
 }
@@ -904,8 +1026,13 @@ class _TeamSection extends StatelessWidget {
           // ── My dashboard ──
           const SectionTitle('My Dashboard'),
           if (me != null)
-            _MyOwnCard(m: me, onTap: () => _openMemberLeads(context, me.id)),
-
+            _MyOwnCard(
+              m: me,
+              onTap: () => _openMemberLeads(context, me.id),
+              onLate: () => _openMemberLeads(context, me.id, late: true),
+              onToday: () => _openMemberLeads(context, me.id, today: true),
+              onFresh: () => _openMemberLeads(context, me.id, fresh: true),
+            ),
           // ── My team ──
           const SectionTitle('My Team'),
           Padding(
@@ -931,7 +1058,13 @@ class _TeamSection extends StatelessWidget {
             )
           else
             for (final m in others) ...[
-              _MemberTile(m: m, onTap: () => _openMemberLeads(context, m.id)),
+              _MemberTile(
+                m: m,
+                onTap: () => _openMemberLeads(context, m.id),
+                onLate: () => _openMemberLeads(context, m.id, late: true),
+                onToday: () => _openMemberLeads(context, m.id, today: true),
+                onFresh: () => _openMemberLeads(context, m.id, fresh: true),
+              ),
               const SizedBox(height: 10),
             ],
         ],
@@ -943,7 +1076,17 @@ class _TeamSection extends StatelessWidget {
 class _MyOwnCard extends StatelessWidget {
   final TeamMember m;
   final VoidCallback onTap;
-  const _MyOwnCard({required this.m, required this.onTap});
+  final VoidCallback onLate;
+  final VoidCallback onToday;
+  final VoidCallback onFresh;
+
+  const _MyOwnCard({
+    required this.m,
+    required this.onTap,
+    required this.onLate,
+    required this.onToday,
+    required this.onFresh,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1024,6 +1167,7 @@ class _MyOwnCard extends StatelessWidget {
                         icon: Icons.schedule_rounded,
                         label: 'Late',
                         value: '${m.late}',
+                        onTap: onLate,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1032,6 +1176,7 @@ class _MyOwnCard extends StatelessWidget {
                         icon: Icons.today_rounded,
                         label: 'Today',
                         value: '${m.today}',
+                        onTap: onToday,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1040,6 +1185,7 @@ class _MyOwnCard extends StatelessWidget {
                         icon: Icons.fiber_new_rounded,
                         label: 'Fresh',
                         value: '${m.noStage}',
+                        onTap: onFresh,
                       ),
                     ),
                   ],
@@ -1056,7 +1202,17 @@ class _MyOwnCard extends StatelessWidget {
 class _MemberTile extends StatelessWidget {
   final TeamMember m;
   final VoidCallback onTap;
-  const _MemberTile({required this.m, required this.onTap});
+  final VoidCallback onLate;
+  final VoidCallback onToday;
+  final VoidCallback onFresh;
+
+  const _MemberTile({
+    required this.m,
+    required this.onTap,
+    required this.onLate,
+    required this.onToday,
+    required this.onFresh,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1117,11 +1273,16 @@ class _MemberTile extends StatelessWidget {
                         spacing: 6,
                         runSpacing: 4,
                         children: [
-                          if (m.late > 0) _Pill('${m.late} late', _kRed),
+                          if (m.late > 0)
+                            _Pill('${m.late} late', _kRed, onTap: onLate),
                           if (m.today > 0)
-                            _Pill('${m.today} today', AppColors.gold),
+                            _Pill(
+                              '${m.today} today',
+                              AppColors.gold,
+                              onTap: onToday,
+                            ),
                           if (m.noStage > 0)
-                            _Pill('${m.noStage} fresh', _kBlue),
+                            _Pill('${m.noStage} fresh', _kBlue, onTap: onFresh),
                           if (!m.isActive) _Pill('inactive', Colors.grey),
                           if (m.role == 'Team Leader')
                             _Pill('Team Leader', AppColors.gold),
@@ -1162,21 +1323,25 @@ class _MemberTile extends StatelessWidget {
 class _Pill extends StatelessWidget {
   final String text;
   final Color color;
-  const _Pill(this.text, this.color);
+  final VoidCallback? onTap;
+  const _Pill(this.text, this.color, {this.onTap});
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.14),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Text(
-      text,
-      style: TextStyle(
-        fontSize: 10.5,
-        fontWeight: FontWeight.w700,
-        color: color,
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
       ),
     ),
   );
