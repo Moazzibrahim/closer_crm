@@ -11,10 +11,12 @@ import 'package:flutter_application_1/features/comments/providers/comments_servi
 import 'package:flutter_application_1/features/crud/data/stages_model.dart';
 import 'package:flutter_application_1/features/crud/providers/crud_service.dart';
 import 'package:flutter_application_1/features/leads/data/lead_model.dart';
+import 'package:flutter_application_1/features/leads/presentation/widgets/edit_done_deal_widget.dart';
 import 'package:flutter_application_1/features/leads/presentation/widgets/lead_details_widget.dart';
 import 'package:flutter_application_1/features/leads/presentation/widgets/lead_filter_sheet.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';
 import 'package:flutter_application_1/features/leads/providers/leads_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ─────────────────────────────────────────────
 //  إعدادات الصفحة لكل role: إيه اللي يظهر وإيه اللي يتعمل
@@ -35,6 +37,8 @@ class LeadDetailsConfig {
   final bool canCommentWithoutStage;
   final bool canAddDeal; // زرار Add deal
   final bool canSeeDealDetails; // كل بيانات الـ Deal: الأدمن بس
+  final bool canEditDeal; // 👈 جديد: تعديل الـ deal
+  final bool canDeleteDeal; // 👈 جديد: حذف الـ deal (الأدمن بس)
 
   const LeadDetailsConfig({
     this.canChangeStage = true,
@@ -47,7 +51,9 @@ class LeadDetailsConfig {
     this.canCommentWithoutStage = false, // الافتراضي: لازم يغيّر stage
     this.canSeeHistory = false, // الافتراضي مخفي لأي role
     this.canAddDeal = true,
-    this.canSeeDealDetails = false,
+    this.canEditDeal = true, // 👈 لكل الرولز
+    this.canDeleteDeal = false, // 👈 الافتراضي ممنوع
+    this.canSeeDealDetails = true, // 👈 كل الرولز تشوف كل التفاصيل
     this.hiddenRows = const {},
   });
 
@@ -57,7 +63,8 @@ class LeadDetailsConfig {
     canSeeHistory: true,
     canChangeStage: true,
     canCommentWithoutStage: true,
-    canSeeDealDetails: true,
+    //  canSeeDealDetails: true,
+    canDeleteDeal: true, // 👈 الأدمن بس
   );
   static const manager = LeadDetailsConfig(
     hiddenRows: {'Added By'},
@@ -79,7 +86,7 @@ class LeadDetailsConfig {
     canChangeStage: false,
     canAssign: false,
     canComment: false,
-    canAddDeal: false, // الماركتر مالوش يضيف deal
+    // canAddDeal: false, // الماركتر مالوش يضيف deal
     showAssignHistory: false,
   );
 }
@@ -218,6 +225,18 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     }
   }
 
+  // 👈 اتصال بالرقم التاني
+  Future<void> _callPhone(String full) async {
+    final phone = full.replaceAll(RegExp(r'[^\d+]'), '');
+    if (phone.isEmpty) return;
+    try {
+      await launchUrl(
+        Uri(scheme: 'tel', path: phone),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {}
+  }
+
   Future<void> _addDeal() async {
     final lead = _item;
     if (lead == null) return;
@@ -255,6 +274,66 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
             : 'Deal added to a new linked contact',
       );
       await _load(); // يجيب closedDeals + linkedContacts محدثين
+    } catch (e) {
+      _snack(e.toString(), error: true);
+    }
+  }
+
+  // ── تعديل deal ──
+  Future<void> _editDeal(Map d) async {
+    if (!_cfg.canEditDeal) return;
+    final dealId = '${d['_id'] ?? d['id'] ?? ''}';
+    if (dealId.isEmpty) {
+      _snack('Deal id not found', error: true);
+      return;
+    }
+    final body = await showEditDealSheet(context, d); // الحقول اللي اتغيرت بس
+    if (body == null || !mounted) return;
+    try {
+      await _leads.updateDeal(widget.leadId, dealId, body);
+      _changed = true; // عشان الليست اللي قبلها تعمل refresh
+      _snack('Deal updated');
+      await _load(); // يجيب الداتا محدثة
+    } catch (e) {
+      _snack(e.toString(), error: true);
+    }
+  }
+
+  // ── حذف deal (الأدمن بس) ──
+  Future<void> _deleteDeal(Map d) async {
+    if (!_cfg.canDeleteDeal) return; // حماية إضافية
+    final dealId = '${d['_id'] ?? d['id'] ?? ''}';
+    if (dealId.isEmpty) {
+      _snack('Deal id not found', error: true);
+      return;
+    }
+    // تأكيد قبل الحذف
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete deal?'),
+        content: const Text('This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Color(0xFFE5484D)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await _leads.deleteDeal(widget.leadId, dealId);
+      _changed = true;
+      _snack('Deal deleted');
+      await _load();
     } catch (e) {
       _snack(e.toString(), error: true);
     }
@@ -313,6 +392,7 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // الهيدر: الوحدة + الـ stage
+            // الهيدر: الوحدة + الـ stage + أزرار التعديل/الحذف
             Row(
               children: [
                 Expanded(
@@ -332,6 +412,32 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
                       color: ldHex((d['stage'] as Map)['color']?.toString()),
                       fontWeight: FontWeight.w700,
                       fontSize: 12,
+                    ),
+                  ),
+                if (_cfg.canEditDeal) // 👈 كل الرولز
+                  InkWell(
+                    onTap: () => _editDeal(d),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Icon(
+                        Icons.edit_rounded,
+                        size: 18,
+                        color: t.accent,
+                      ),
+                    ),
+                  ),
+                if (_cfg.canDeleteDeal) // 👈 الأدمن بس
+                  InkWell(
+                    onTap: () => _deleteDeal(d),
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        size: 18,
+                        color: Color(0xFFE5484D),
+                      ),
                     ),
                   ),
               ],
@@ -650,14 +756,19 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
     await _load();
   }
 
-  Future<void> _changeStage() async {
+  Future<void> _changeStage({bool dealOnly = false}) async {
+    // 👈
     final lead = _item;
     if (lead == null) return;
 
-    // لو لسه ما اتحملتش (أو فشلت) نجرب تاني قبل ما نفتح الشيت
     if (_stages.isEmpty) await _loadStages();
     if (_stages.isEmpty) {
       _snack('Could not load stages, try again', error: true);
+      return;
+    }
+    if (dealOnly && !_stages.any((s) => s.isDeal)) {
+      // 👈
+      _snack('No deal stages found', error: true);
       return;
     }
 
@@ -670,7 +781,9 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
           StageOpt(s.id, s.name, s.color, isDeal: s.isDeal),
       ],
       projects: [for (final o in _projects) (id: o.id, name: o.name)],
+      dealOnly: dealOnly, // 👈
     );
+    // ... باقي الدالة زي ما هي (updateStage بيبعت stage + deal من غير notes)
     if (r == null || !mounted) return;
 
     try {
@@ -869,8 +982,13 @@ class _LeadDetailsScreenState extends State<LeadDetailsScreen> {
       LdRow(
         Icons.phone_android_rounded,
         'Phone 2',
-        '${j['fullPhone2'] ?? ''}',
+        lead.fullPhone2, // 👈 من الموديل (الفاضي بيتشال تلقائي)
         copy: true,
+        // 👈 زرار Call للأدوار اللي مسموح لها بالاتصال
+        actionLabel: (_cfg.canCall && lead.hasPhone2) ? 'Call' : null,
+        onAction: (_cfg.canCall && lead.hasPhone2)
+            ? () => _callPhone(lead.fullPhone2)
+            : null,
       ),
       LdRow(Icons.campaign_rounded, 'Campaign', ldNames(j['campaigns'])),
       LdRow(

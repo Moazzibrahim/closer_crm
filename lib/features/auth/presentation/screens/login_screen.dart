@@ -5,6 +5,8 @@ import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/main_shell.dart'; // عدّل المسار حسب مكان الملف
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/auth/providers/crm_settings.dart';
+import 'package:flutter_application_1/features/company%20selection/presentation/company_code_screen.dart';
+import 'package:flutter_application_1/features/company%20selection/provider/company_store.dart';
 import 'package:flutter_application_1/features/splash/closer_logo.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
@@ -88,6 +90,16 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // 👈 يمسح الشركة والتوكن، ويرجع لشاشة كود الشركة
+  Future<void> _changeCompany() async {
+    await CompanyStore.clear();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const CompanyCodeScreen()),
+      (_) => false,
+    );
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -146,7 +158,30 @@ class _LoginScreenState extends State<LoginScreen> {
                       const CloserLogo(size: 52, background: Colors.white),
                     ],
                   ),
+                  // 👈 اسم الشركة اللي اتحددت من الكود
+                  if (CompanyStore.current != null) ...[
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.business_rounded,
+                          size: 16,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          CompanyStore.current!.name,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 65),
+
                   /// TITLE
                   const Text(
                     'Welcome back',
@@ -166,6 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 38),
+
                   /// FORM
                   Form(
                     key: _formKey,
@@ -262,7 +298,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               height: 24,
                               child: Checkbox(
                                 value: _rememberMe,
-                                activeColor: AppColors.navy,
+                                activeColor: AppColors.gold,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(5),
                                 ),
@@ -316,7 +352,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: isLoading ? null : _login,
 
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.navy,
+                              backgroundColor: AppColors.gold,
                               foregroundColor: Colors.white,
 
                               elevation: 0,
@@ -349,6 +385,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
 
                   const Spacer(),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: _changeCompany,
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                      label: const Text('Change company'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.gold,
+                      ),
+                    ),
+                  ),
 
                   /// FOOTER
                   Center(

@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, deprecated_member_use_from_same_package
 
 import 'dart:async';
 
@@ -80,6 +80,35 @@ void _logMessage(String source, RemoteMessage m) {
   debugPrint('data      : ${m.data}');
   debugPrint('hasNotificationPayload: ${m.notification != null}');
   debugPrint('═══════════════════════════════');
+}
+
+class AppBackObserver extends StatefulWidget {
+  final Widget child;
+
+  const AppBackObserver({super.key, required this.child});
+
+  @override
+  State<AppBackObserver> createState() => _AppBackObserverState();
+}
+
+class _AppBackObserverState extends State<AppBackObserver>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope<Object?>(canPop: false, child: widget.child);
+  }
 }
 
 /// ============================================================
@@ -201,7 +230,7 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
         debugShowCheckedModeBanner: false,
         title: 'Closer CRM ',
         theme: _theme,
-        home: const SplashScreen(),
+        home: AppBackObserver(child: const SplashScreen()),
       ),
     );
   }
@@ -211,7 +240,7 @@ ThemeData _buildTheme() {
   return ThemeData(
     useMaterial3: true,
     scaffoldBackgroundColor: AppColors.background,
-    colorScheme: ColorScheme.fromSeed(seedColor: AppColors.navy),
+    colorScheme: ColorScheme.fromSeed(seedColor: AppColors.gold),
     fontFamily: 'Roboto',
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.transparent,

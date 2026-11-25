@@ -1,10 +1,11 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, deprecated_member_use_from_same_package
 // lead_phone_widget.dart
 // Widget مستقل: الرقم + (اتصال / واتساب / آخر كومنت). بيتستخدم في أي كارت أو رول.
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/utils/phone_utils.dart';
 import 'package:flutter_application_1/features/comments/data/last_comment_model.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class LeadPhoneRow extends StatelessWidget {
@@ -108,8 +109,12 @@ class LeadPhoneRow extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         LeadActionBtn(
-          icon: Icons.chat_rounded,
-          color: const Color(0xFF16A34A),
+          iconWidget: FaIcon(
+            FontAwesomeIcons.whatsapp,
+            color: accent,
+            size: 22,
+          ),
+          color: dark ? AppColors.goldLight : AppColors.navyLight,
           enabled: info.isValid,
           onTap: () => guard(
             () => _launch(
@@ -137,17 +142,19 @@ class LeadPhoneRow extends StatelessWidget {
 }
 
 class LeadActionBtn extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon; // 👈 بقت اختيارية
+  final Widget? iconWidget; // 👈 جديد (للـ FaIcon)
   final Color color;
   final bool enabled;
   final VoidCallback? onTap;
   const LeadActionBtn({
     super.key,
-    required this.icon,
+    this.icon,
+    this.iconWidget,
     required this.color,
     this.enabled = true,
     this.onTap,
-  });
+  }) : assert(icon != null || iconWidget != null);
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +170,8 @@ class LeadActionBtn extends StatelessWidget {
             color: color.withOpacity(0.12),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Icon(icon, color: color, size: 20),
+          alignment: Alignment.center,
+          child: iconWidget ?? Icon(icon, color: color, size: 20),
         ),
       ),
     );

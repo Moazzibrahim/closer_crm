@@ -2,7 +2,8 @@
 // Models للـ 3 endpoints: stages / follow-ups / deals (نسخة السيلز)
 
 import 'package:flutter/material.dart';
-import 'package:flutter_application_1/core/widgets/dashboard_widget.dart'; // BarPoint
+import 'package:flutter_application_1/core/widgets/dashboard_widget.dart';
+import 'package:flutter_application_1/features/admin/presentation/screens/deals_list_screen.dart'; // BarPoint
 
 // ─────────────────────────────────────────────
 //  Parsing helpers (آمنة ضد null / int-double)
@@ -129,15 +130,19 @@ class FollowUpsData {
 //  Deals
 // ─────────────────────────────────────────────
 class DealsData {
-  final int deals, clients, linkedDeals, linkedContacts; //
+  final int deals, clients, linkedDeals, linkedContacts;
   final double value, commission, cashback, net;
   final List<int> years;
   final List<BarPoint> timeline;
 
+  /// قايمة الصفقات نفسها من نفس الرد (لحد 2000)
+  final List<Map<String, dynamic>> list; // 👈 جديد
+  final bool listLimited; // 👈 جديد
+
   DealsData.fromJson(Map<String, dynamic> j)
     : deals = _i(j['totals']?['deals']),
       clients = _i(j['totals']?['clients']),
-      linkedDeals = _i(j['totals']?['linkedDeals']), // 👈
+      linkedDeals = _i(j['totals']?['linkedDeals']),
       linkedContacts = _i(j['totals']?['linkedContacts']),
       value = _d(j['totals']?['value']),
       commission = _d(j['totals']?['commission']),
@@ -147,5 +152,7 @@ class DealsData {
       timeline = [
         for (final t in (j['timeline'] as List? ?? []))
           BarPoint('${t['label']}', _d(t['value']), _i(t['deals'])),
-      ];
+      ],
+      list = dealsListOf(j), // 👈 بيقرا المفتاح "list"
+      listLimited = j['listLimited'] == true; // 👈
 }

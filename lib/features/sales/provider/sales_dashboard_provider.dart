@@ -3,6 +3,7 @@
 // مفيش فلتر سيلز: الـ salesId ثابت = اليوزر الحالي.
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/core/constants/api_constants.dart';
 import 'package:flutter_application_1/core/utils/dio_client.dart';
@@ -75,6 +76,13 @@ class SalesDashboardService {
       if (!team) 'sales': salesId, // التيم ليدر: من غير sales = فريقه كله
       'tz': 'Asia/Dubai',
     });
+    if (kDebugMode) {
+      // بيطبع مفاتيح الرد وعدد القايمة، عشان نتأكد إن "list" موجودة جوه data
+      debugPrint('sales deals keys: ${j.keys.toList()}');
+      debugPrint(
+        'sales deals list: ${(j['list'] as List?)?.length} / totals: ${j['totals']?['deals']}',
+      );
+    }
     return DealsData.fromJson(j);
   }
 

@@ -36,6 +36,8 @@ class LeadItem {
       salesman,
       leadType;
   final String? phoneCountryCode, notes;
+  final String? phone2CountryCode, phone2; // 👈 الرقم التاني
+  final String fullPhone2; // 👈 جاهز للعرض (فاضي = مفيش رقم تاني)
   final String? email;
   final LastComment? lastComment;
   final Color stageColor;
@@ -58,6 +60,9 @@ class LeadItem {
     required this.salesman,
     required this.leadType,
     required this.isActive,
+    this.phone2CountryCode,
+    this.phone2,
+    this.fullPhone2 = '', // 👈
     this.email,
     this.lastComment,
     this.phoneCountryCode,
@@ -72,6 +77,8 @@ class LeadItem {
     this.qa =
         const [], // 👈 default فاضية عشان ما تكسرش أي مكان بيستخدم الـ constructor
   });
+
+  bool get hasPhone2 => fullPhone2.isNotEmpty;
 
   static Color _hex(String? h) {
     try {
@@ -141,6 +148,11 @@ class LeadItem {
         .map((e) => LeadSubmission.fromJson(Map<String, dynamic>.from(e)))
         .toList();
 
+    // 👈 الرقم التاني: من fullPhone2 لو جاي، وإلا نركّبه من الكود + الرقم
+    final cc2 = nz(j['phone2CountryCode']);
+    final p2 = nz(j['phone2']);
+    final full2 = nz(j['fullPhone2']) ?? (p2 == null ? '' : '${cc2 ?? ''}$p2');
+
     return LeadItem(
       id: (j['_id'] ?? j['id']).toString(),
       name: (j['name'] ?? '').toString(),
@@ -169,6 +181,9 @@ class LeadItem {
       phoneCountryCode: cc.isEmpty ? null : cc,
       notes: j['notes']?.toString(),
       qa: qa, // 👈
+      phone2CountryCode: cc2,
+      phone2: p2,
+      fullPhone2: full2,
     );
   }
 }

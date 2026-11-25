@@ -263,6 +263,41 @@ class LeadCard extends StatelessWidget {
                                         ),
                                       ),
                                     ],
+                                    // 👈 badge لو الليد عنده رقمين
+                                    if (lead.hasPhone2) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: accent.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.phone_in_talk_rounded,
+                                              size: 11,
+                                              color: accent,
+                                            ),
+                                            const SizedBox(width: 3),
+                                            Text(
+                                              '2',
+                                              style: TextStyle(
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w800,
+                                                color: accent,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ],
@@ -271,7 +306,6 @@ class LeadCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 14),
-
                       // ── Salesman + Created (chips) ──
                       Row(
                         children: [

@@ -184,6 +184,7 @@ class AiChatService {
     } on AiChatException {
       rethrow;
     } on DioException catch (e) {
+      print('templates ${e.response?.statusCode}: ${e.response?.data}');
       // timeout
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout ||

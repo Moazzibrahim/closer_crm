@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unnecessary_underscores
+// ignore_for_file: deprecated_member_use, unnecessary_underscores, deprecated_member_use_from_same_package
 // leads_filter_sheet.dart
 // فلتر الـ Leads كـ widget مستقل. استخدمه في أي رول وحدد الحقول اللي تظهر بـ `fields`.
 //
@@ -79,7 +79,7 @@ class LeadFilterOptions {
   LeadFilterOptions._();
 
   // الأدوار المسموحة في فلتر الـ Sales
-  static const _salesRoles = {'sales', 'teamleader', 'manager'};
+  static const _salesRoles = {'sales', 'teamleader', 'salesmanager'};
 
   /// المشاريع بس (request واحد بدل 7)
   static Future<List<Opt>> loadProjects() => _load(Endpoints.projects);
@@ -180,7 +180,7 @@ class LeadFilterOptions {
       'sales': useLookup ? allUsers : res[11],
       'assignedFrom': allUsers,
       'assignedBy': allUsers,
-      'assignedTo': allUsers,
+      'assignedTo': useLookup ? allUsers : res[11],
     };
   }
 

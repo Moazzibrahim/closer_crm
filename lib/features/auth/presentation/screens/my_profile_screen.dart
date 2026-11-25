@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unused_local_variable, unused_element_parameter
+// ignore_for_file: deprecated_member_use, unused_local_variable, unused_element_parameter, deprecated_member_use_from_same_package
 
 import 'dart:async';
 
@@ -154,7 +154,7 @@ class MyProfileScreen extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.navy,
+                  color: AppColors.background,
                 ),
               ),
             ),

@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unnecessary_underscores
+// ignore_for_file: deprecated_member_use, unnecessary_underscores, deprecated_member_use_from_same_package
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -280,13 +280,47 @@ class LeadsScreenState extends State<LeadsScreen> {
 
   void _clearSelection() => setState(_selected.clear);
 
-  void _selectAll() => setState(() {
-    if (_selected.length == _c.items.length) {
-      _selected.clear();
-    } else {
-      _selected.addAll(_c.items.map((e) => e.id));
+  bool _selectingAll = false;
+
+  Future<void> _selectAll() async {
+    if (_selectingAll) return;
+    debugPrint('items=${_c.items.length} total=${_c.totalItems} hasMore=${_c.hasMore}');
+
+    // الكل متحدد → امسح
+    if (_c.totalItems > 0 && _selected.length >= _c.totalItems) {
+      setState(_selected.clear);
+      return;
     }
-  });
+
+    // 👈 كله محمّل فعلاً (بالعدد مش بـ hasMore) → فوري من غير API
+    if (_c.items.length >= _c.totalItems) {
+      setState(
+        () => _selected
+          ..clear()
+          ..addAll(_c.items.map((e) => e.id)),
+      );
+      return;
+    }
+
+    // فيه أكتر من المحمّل → حدد المحمّل فوراً وهات الباقي
+    setState(() {
+      _selected.addAll(_c.items.map((e) => e.id));
+      _selectingAll = true;
+    });
+    try {
+      final ids = await _c.fetchAllIds();
+      if (!mounted) return;
+      setState(
+        () => _selected
+          ..clear()
+          ..addAll(ids),
+      );
+    } catch (e) {
+      _toast(e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _selectingAll = false);
+    }
+  }
 
   String get _countLabel =>
       _selected.length == 1 ? '1 lead' : '${_selected.length} leads';
@@ -616,7 +650,9 @@ class LeadsScreenState extends State<LeadsScreen> {
                             duration: const Duration(milliseconds: 200),
                             child: _SelectionHeader(
                               count: _selected.length,
-                              total: _c.items.length,
+                              total: _c.totalItems, // 👈 بدل _c.items.length
+                              busy: _selectingAll, // 👈 جديد
+
                               onClose: _clearSelection,
                               onSelectAll: _selectAll,
                             ),
@@ -1102,7 +1138,7 @@ class _TabPill extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: active ? AppColors.navy : inactive,
+                    color: active ? AppColors.background : inactive,
                   ),
                 ),
               ),
@@ -1167,11 +1203,13 @@ class _FilterChip extends StatelessWidget {
 class _SelectionHeader extends StatelessWidget {
   final int count, total;
   final VoidCallback onClose, onSelectAll;
+  final bool busy; // 👈
   const _SelectionHeader({
     required this.count,
     required this.total,
     required this.onClose,
     required this.onSelectAll,
+    this.busy = false,
   });
 
   @override
@@ -1237,14 +1275,20 @@ class _SelectionHeader extends StatelessWidget {
                 ),
               ),
               TextButton.icon(
-                onPressed: onSelectAll,
+                onPressed: busy ? null : onSelectAll,
                 style: TextButton.styleFrom(foregroundColor: AppColors.gold),
-                icon: Icon(
-                  allSelected
-                      ? Icons.deselect_rounded
-                      : Icons.select_all_rounded,
-                  size: 20,
-                ),
+                icon: busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        allSelected
+                            ? Icons.deselect_rounded
+                            : Icons.select_all_rounded,
+                        size: 20,
+                      ),
                 label: Text(
                   allSelected ? 'Clear' : 'Select all',
                   style: const TextStyle(fontWeight: FontWeight.w700),

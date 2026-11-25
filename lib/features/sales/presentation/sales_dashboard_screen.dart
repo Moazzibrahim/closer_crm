@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/main_shell.dart';
 import 'package:flutter_application_1/core/widgets/dashboard_widget.dart';
+import 'package:flutter_application_1/features/admin/presentation/screens/deals_list_screen.dart';
+import 'package:flutter_application_1/features/admin/providers/dashboard_provider.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/leads/presentation/screens/lead_details_screen_master.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';
@@ -60,10 +62,58 @@ Widget _leadsFor(SalesDashboardProvider p, LeadsFilters preset) {
 
 void _openLinkedLeads(BuildContext context) {
   final p = context.read<SalesDashboardProvider>();
+  final r = _dealsRange(p);
+
   context.read<ShellProvider>().openLeads(
-    LeadsFilters(linkedDeals: true, sales: p.isTeam ? const [] : [p.salesId]),
+    LeadsFilters(
+      linkedDeals: true,
+      sales: p.isTeam ? const [] : [p.salesId],
+      createdFrom: _ymd(r.from),
+      createdTo: _ymd(r.to),
+    ),
     builder: (preset) => _leadsFor(p, preset),
   );
+}
+
+/// بيفتح شاشة الصفقات بنفس الداتا والفلاتر الحالية
+void _openDealsList(BuildContext context, DealsData d) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => DealsListScreen(
+        deals: d.list,
+        total: d.deals, // 👈 نفس رقم الكارت
+        limited: d.listLimited,
+        // _openLeadDetails بتحدد الـ config حسب الـ role
+        onOpenLead: (ctx, id) {
+          Navigator.of(ctx).pop(); // يقفل DealsListScreen
+          _openLeadDetails(context, id);
+        },
+      ),
+    ),
+  );
+}
+
+/// بتحول (view, year, quarter, month) لنطاق تاريخ
+({DateTime from, DateTime to}) _dealsRange(SalesDashboardProvider p) {
+  switch (p.dealsView) {
+    case 'month':
+      return (
+        from: DateTime(p.dealsYear, p.dealsMonth, 1),
+        to: DateTime(p.dealsYear, p.dealsMonth + 1, 0),
+      );
+    case 'quarter':
+      final s = (p.dealsQuarter - 1) * 3 + 1;
+      return (
+        from: DateTime(p.dealsYear, s, 1),
+        to: DateTime(p.dealsYear, s + 3, 0),
+      );
+    default:
+      return (
+        from: DateTime(p.dealsYear, 1, 1),
+        to: DateTime(p.dealsYear, 12, 31),
+      );
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -139,26 +189,42 @@ _Scope _scopeFor(BuildContext context, SalesDashboardProvider p) {
   );
 }
 
+// Future<void> _openLeadDetails(BuildContext context, String leadId) async {
+//   final p = context.read<SalesDashboardProvider>();
+//   final s = _scopeFor(context, p);
+//   await Navigator.push(
+//     context,
+//     MaterialPageRoute(
+//       builder: (_) => LeadDetailsScreen(
+//         leadId: leadId,
+//         config: s.config,
+//         allowAssignTeamLeader: s.allowTL,
+//         teamOwnerId: s.ownerId,
+//         teamOwnerIsManager: s.isManager,
+//         teamOwnerName: s.ownerName,
+//         canResetCreationDate: s.canReset,
+//       ),
+//     ),
+//   );
+//   if (context.mounted) {
+//     context.read<SalesDashboardProvider>().load(); // يحدّث الأرقام
+//   }
+// }
+
 Future<void> _openLeadDetails(BuildContext context, String leadId) async {
   final p = context.read<SalesDashboardProvider>();
   final s = _scopeFor(context, p);
-  await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => LeadDetailsScreen(
-        leadId: leadId,
-        config: s.config,
-        allowAssignTeamLeader: s.allowTL,
-        teamOwnerId: s.ownerId,
-        teamOwnerIsManager: s.isManager,
-        teamOwnerName: s.ownerName,
-        canResetCreationDate: s.canReset,
-      ),
+  context.read<ShellProvider>().openLeadDetails(
+    () => LeadDetailsScreen(
+      leadId: leadId,
+      config: s.config,
+      allowAssignTeamLeader: s.allowTL,
+      teamOwnerId: s.ownerId,
+      teamOwnerIsManager: s.isManager,
+      teamOwnerName: s.ownerName,
+      canResetCreationDate: s.canReset,
     ),
   );
-  if (context.mounted) {
-    context.read<SalesDashboardProvider>().load(); // يحدّث الأرقام
-  }
 }
 
 IconData _stageIcon(String name) {
@@ -785,6 +851,7 @@ class _FollowUpsSection extends StatelessWidget {
             const SizedBox(height: 12),
             RowsCard(
               title: 'Most overdue',
+              maxHeight: 320, // 👈 جديد
               rows: [
                 for (final l in f.mostOverdue)
                   RowItem(
@@ -837,7 +904,12 @@ class _DealsSection extends StatelessWidget {
           if (d != null) ...[
             StatGrid(
               items: [
-                StatItem('Deals', '${d.deals}', Icons.handshake_rounded),
+                StatItem(
+                  'Deals',
+                  '${d.deals}',
+                  Icons.handshake_rounded,
+                  onTap: () => _openDealsList(context, d), // 👈
+                ),
                 StatItem('Clients', '${d.clients}', Icons.groups_rounded),
                 StatItem(
                   'Linked deals',

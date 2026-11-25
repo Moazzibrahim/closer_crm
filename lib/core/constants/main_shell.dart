@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element, deprecated_member_use_from_same_package
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,13 +10,15 @@ import 'package:flutter_application_1/features/admin/presentation/screens/admin_
 import 'package:flutter_application_1/features/auth/presentation/screens/my_profile_screen.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/auth/providers/crm_settings.dart';
-import 'package:flutter_application_1/features/chat/presentation/screens/admin_ai_chat_screen.dart';
+import 'package:flutter_application_1/features/Ai%20chat/presentation/screens/admin_ai_chat_screen.dart';
 import 'package:flutter_application_1/features/leads/presentation/screens/create_leads_screen.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';
 import 'package:flutter_application_1/features/manager/presentation/screens/manager_leads_screen.dart';
 import 'package:flutter_application_1/features/marketer/presentation/screens/marketer_dashboard_screen.dart';
 import 'package:flutter_application_1/features/marketer/presentation/screens/marketer_leads_screen.dart';
 import 'package:flutter_application_1/features/marketer/provider/marketer_dashboard_provider.dart';
+import 'package:flutter_application_1/features/messaging/provider/messaging_fab.dart';
+import 'package:flutter_application_1/features/messaging/provider/messaging_provider.dart';
 import 'package:flutter_application_1/features/sales/presentation/sales_dashboard_screen.dart';
 import 'package:flutter_application_1/features/sales/presentation/sales_leads_screen.dart';
 import 'package:flutter_application_1/features/sales/provider/sales_dashboard_provider.dart';
@@ -276,6 +280,18 @@ class ShellProvider extends ChangeNotifier {
     _enter(leadsIndex, rebuild: true); // Navigator جديد بالـ preset
   }
 
+  /// يفتح تفاصيل ليد جوه تاب الـ Leads (والـ nav bar يتحرك عليه)
+  void openLeadDetails(Widget Function() detailsBuilder, {int leadsIndex = 1}) {
+    _visited.add(leadsIndex);
+    index = leadsIndex;
+    notifyListeners();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      navKeys[leadsIndex].currentState?.push(
+        MaterialPageRoute(builder: (_) => detailsBuilder()),
+      );
+    });
+  }
+
   void _enter(int i, {required bool rebuild}) {
     if (rebuild) navKeys[i] = GlobalKey<NavigatorState>();
     _visited.add(i);
@@ -309,6 +325,7 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final crm = context.watch<CrmSettingsProvider>();
+    debugPrint('MAIN SHELL BUILD');
 
     if (!crm.isLoaded) {
       return Scaffold(
@@ -337,13 +354,22 @@ class _MainShellState extends State<MainShell> {
       );
     }
 
-    return ChangeNotifierProvider(
-      key: ValueKey('${widget.role}-${config.tabs.length}'),
-      create: (_) => ShellProvider(
-        config.tabs.length,
-        fresh: [for (final t in config.tabs) t.refreshOnEnter],
+    return PopScope<Object?>(
+      canPop: false,
+      child: MultiProvider(
+        key: ValueKey('${widget.role}-${config.tabs.length}'),
+        providers: [
+          ChangeNotifierProvider(
+            create: (_) => ShellProvider(
+              config.tabs.length,
+              fresh: [for (final t in config.tabs) t.refreshOnEnter],
+            ),
+          ),
+          if (widget.role != UserRole.marketer)
+            ChangeNotifierProvider(create: (_) => MessagingProvider()..init()),
+        ],
+        child: _ShellView(config: config, role: widget.role),
       ),
-      child: _ShellView(config: config, role: widget.role),
     );
   }
 }
@@ -376,32 +402,52 @@ class _ShellView extends StatelessWidget {
     final shell = context.watch<ShellProvider>();
 
     // Back: يرجع جوه التاب → للتاب الأول → يقفل التطبيق
-    return PopScope(
+
+    return PopScope<Object?>(
       canPop: false,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
+      onPopInvokedWithResult: (didPop, result) async {
+        debugPrint('BACK PRESSED - didPop: $didPop');
+        if (didPop || !context.mounted) return;
+
         final nav = shell.navKeys[shell.index].currentState;
-        if (nav != null && await nav.maybePop()) return;
+
+        // لو فيه صفحة داخلية ارجع منها
+        if (nav != null && nav.canPop()) {
+          await nav.maybePop();
+          return;
+        }
+
+        // لو مش في Dashboard ارجع للتاب الأول
         if (shell.index != 0) {
           shell.setIndex(0);
-        } else {
-          SystemNavigator.pop();
+          return;
         }
+
+        // تجاهل زرار Back تماماً
       },
       child: Scaffold(
+        // ضع هنا باقي كود Scaffold الحالي كما هو
+
         // IndexedStack + lazy: التاب ما يتبنيش إلا لما تفتحه أول مرة
-        body: IndexedStack(
-          index: shell.index,
+        body: Stack(
           children: [
-            for (int i = 0; i < config.tabs.length; i++)
-              shell.isVisited(i)
-                  ? Navigator(
-                      key: shell.navKeys[i],
-                      onGenerateRoute: (_) => MaterialPageRoute(
-                        builder: shell.takePending(i) ?? config.tabs[i].root,
-                      ),
-                    )
-                  : const SizedBox.shrink(),
+            IndexedStack(
+              index: shell.index,
+              children: [
+                for (int i = 0; i < config.tabs.length; i++)
+                  shell.isVisited(i)
+                      ? Navigator(
+                          key: shell.navKeys[i],
+                          onGenerateRoute: (_) => MaterialPageRoute(
+                            builder:
+                                shell.takePending(i) ?? config.tabs[i].root,
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+              ],
+            ),
+            //    if (role != UserRole.marketer)
+            const Positioned(left: 16, bottom: 55, child: MessagingFab()),
           ],
         ),
         bottomNavigationBar: _FloatingNavBar(

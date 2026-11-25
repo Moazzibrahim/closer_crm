@@ -1,6 +1,6 @@
 // lib/features/ai_chat/presentation/providers/ai_chat_provider.dart
 import 'package:flutter/foundation.dart';
-import 'package:flutter_application_1/features/chat/provider/chat_service.dart';
+import 'package:flutter_application_1/features/Ai%20chat/provider/chat_service.dart';
 
 class AiChatProvider extends ChangeNotifier {
   final AiChatService _service;

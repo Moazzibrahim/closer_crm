@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unnecessary_underscores
+// ignore_for_file: deprecated_member_use, unnecessary_underscores, deprecated_member_use_from_same_package
 // كل الـ widgets والـ helpers المشتركة بين صفحة التفاصيل وصفحة All Comments.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -227,7 +227,7 @@ class LdHeader extends StatelessWidget {
                             const Icon(
                               Icons.flag_rounded,
                               size: 12,
-                              color: AppColors.navy,
+                              color: AppColors.background,
                             ),
                             const SizedBox(width: 4),
                             Flexible(
@@ -238,7 +238,7 @@ class LdHeader extends StatelessWidget {
                                 style: const TextStyle(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.navy,
+                                  color: AppColors.background,
                                 ),
                               ),
                             ),
@@ -291,7 +291,7 @@ class LdHeader extends StatelessWidget {
                         child: const Icon(
                           Icons.call_rounded,
                           size: 20,
-                          color: AppColors.navy,
+                          color: AppColors.background,
                         ),
                       ),
                     ),

@@ -6,6 +6,8 @@ import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/main_shell.dart';
 import 'package:flutter_application_1/core/widgets/dashboard_widget.dart';
 import 'package:flutter_application_1/features/admin/data/admin_dashboard_model.dart';
+import 'package:flutter_application_1/features/admin/data/deals_dashboard_model.dart';
+import 'package:flutter_application_1/features/admin/presentation/screens/deals_list_screen.dart';
 import 'package:flutter_application_1/features/admin/providers/dashboard_provider.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/leads/presentation/screens/lead_details_screen_master.dart';
@@ -737,20 +739,75 @@ void _openFollowUpLeads(
 }
 
 void _openLinkedLeads(BuildContext context) {
-  context.read<ShellProvider>().openLeads(LeadsFilters(linkedDeals: true));
-}
+  final deals = context.read<DealsProvider>();
+  final r = _dealsRange(deals);
 
-Future<void> _openLeadDetails(BuildContext context, String leadId) async {
-  await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) =>
-          LeadDetailsScreen(leadId: leadId, config: LeadDetailsConfig.admin),
+  context.read<ShellProvider>().openLeads(
+    LeadsFilters(
+      linkedDeals: true,
+      sales: deals.salesIds.isEmpty ? null : deals.salesIds.toList(),
+      createdFrom: ymd(r.from),
+      createdTo: ymd(r.to),
     ),
   );
-  if (context.mounted) {
-    context.read<DashboardProvider>().load(); // يحدّث الأرقام
+}
+
+/// بيفتح شاشة الصفقات بنفس الداتا والفلاتر الحالية للكارت
+void _openDealsList(BuildContext context, DealsDashboard d) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => DealsListScreen(
+        deals: d.list,
+        total: d.totals.deals, // 👈 نفس رقم الكارت
+        limited: d.listLimited,
+        // بنستخدم الـ context بتاع الداشبورد (الـ providers مش موجودة فوق الـ route الجديد)
+        onOpenLead: (ctx, id) {
+          Navigator.of(ctx).pop(); // يقفل DealsListScreen
+          _openLeadDetails(context, id);
+        },
+      ),
+    ),
+  );
+}
+
+/// بتحول (view, year, quarter, month) لنطاق تاريخ
+({DateTime from, DateTime to}) _dealsRange(DealsProvider p) {
+  switch (p.view) {
+    case 'month':
+      final m = p.month;
+      return (
+        from: DateTime(p.year, m, 1),
+        to: DateTime(p.year, m + 1, 0), // آخر يوم في الشهر
+      );
+    case 'quarter':
+      final startMonth = (p.quarter - 1) * 3 + 1;
+      return (
+        from: DateTime(p.year, startMonth, 1),
+        to: DateTime(p.year, startMonth + 3, 0),
+      );
+    default: // year
+      return (from: DateTime(p.year, 1, 1), to: DateTime(p.year, 12, 31));
   }
+}
+
+// Future<void> _openLeadDetails(BuildContext context, String leadId) async {
+//   await Navigator.push(
+//     context,
+//     MaterialPageRoute(
+//       builder: (_) =>
+//           LeadDetailsScreen(leadId: leadId, config: LeadDetailsConfig.admin),
+//     ),
+//   );
+//   if (context.mounted) {
+//     context.read<DashboardProvider>().load(); // يحدّث الأرقام
+//   }
+// }
+
+Future<void> _openLeadDetails(BuildContext context, String leadId) async {
+  context.read<ShellProvider>().openLeadDetails(
+    () => LeadDetailsScreen(leadId: leadId, config: LeadDetailsConfig.admin),
+  );
 }
 
 String _lateText(DateTime? d) {
@@ -863,6 +920,7 @@ class _FollowUpsSection extends StatelessWidget {
             const SizedBox(height: 12),
             RowsCard(
               title: 'Most overdue',
+              maxHeight: 320, // 👈 جديد
               rows: [
                 for (final l in f.mostOverdue)
                   RowItem(
@@ -889,6 +947,8 @@ class _FollowUpsSection extends StatelessWidget {
             const SizedBox(height: 12),
             RowsCard(
               title: 'Late by sales',
+              maxHeight: 320, // 👈 جديد
+
               rows: [
                 for (final s in f.lateBySales)
                   RowItem(
@@ -943,7 +1003,12 @@ class _DealsSection extends StatelessWidget {
           if (d != null) ...[
             StatGrid(
               items: [
-                StatItem('Deals', '${d.totals.deals}', Icons.handshake_rounded),
+                StatItem(
+                  'Deals',
+                  '${d.totals.deals}',
+                  Icons.handshake_rounded,
+                  onTap: () => _openDealsList(context, d), // 👈
+                ),
                 StatItem(
                   'Clients',
                   '${d.totals.clients}',
@@ -994,6 +1059,7 @@ class _DealsSection extends StatelessWidget {
             if (d.bySales.isNotEmpty) ...[
               const SizedBox(height: 12),
               RowsCard(
+                maxHeight: 320, // 👈 جديد
                 title: 'By sales',
                 rows: [
                   for (final r in d.bySales)
@@ -1009,6 +1075,7 @@ class _DealsSection extends StatelessWidget {
               const SizedBox(height: 12),
               RowsCard(
                 title: 'By stage',
+                maxHeight: 320, // 👈 جديد
                 rows: [
                   for (final r in d.byStage)
                     RowItem(

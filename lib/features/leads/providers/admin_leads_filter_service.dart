@@ -414,4 +414,34 @@ class LeadsController extends ChangeNotifier {
     loadingMore = false;
     notifyListeners();
   }
+
+  /// بيجيب IDs كل الـ leads اللي مطابقة للفلتر الحالي (كل الصفحات)
+  Future<List<String>> fetchAllIds({int batch = 100}) async {
+    final path = myLeads ? '${Endpoints.leads}/my-leads' : Endpoints.leads;
+    final pages = (totalItems / batch).ceil();
+
+    Future<List<String>> fetchPage(int page) async {
+      final q = filters.toQuery(myLeads: myLeads, page: page, limit: batch);
+      final res = await CrudService(path).getAll(params: q);
+      return (res['data'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => (e['_id'] ?? e['id'])?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+    }
+
+    final ids = <String>{};
+    const parallel = 5; // عدد الطلبات المتزامنة
+
+    for (var start = 1; start <= pages; start += parallel) {
+      final end = (start + parallel - 1).clamp(1, pages);
+      final results = await Future.wait([
+        for (var p = start; p <= end; p++) fetchPage(p),
+      ]);
+      for (final r in results) {
+        ids.addAll(r);
+      }
+    }
+    return ids.toList();
+  }
 }

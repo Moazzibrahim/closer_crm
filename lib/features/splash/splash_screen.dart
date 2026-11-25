@@ -1,11 +1,14 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, deprecated_member_use_from_same_package
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/main_shell.dart'; // عدّل المسار حسب مكان الملف
+import 'package:flutter_application_1/core/utils/update_checker.dart';
 import 'package:flutter_application_1/features/auth/presentation/screens/login_screen.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
+import 'package:flutter_application_1/features/company%20selection/presentation/company_code_screen.dart';
+import 'package:flutter_application_1/features/company%20selection/provider/company_store.dart';
 import 'package:flutter_application_1/features/splash/closer_logo.dart';
 import 'package:provider/provider.dart';
 
@@ -87,29 +90,39 @@ class _SplashScreenState extends State<SplashScreen>
   /// لو فيه session محفوظة (token + role) → ادخل على الشاشة الرئيسية مباشرة،
   /// غير كده → شاشة اللوجين.
   Future<void> _goNext() async {
-    final auth = context.read<AuthProvider>(); // 👈 عرّف المتغير هنا
+    final auth = context.read<AuthProvider>();
 
-    // استرجع بيانات اليوزر المحفوظة قبل أي تنقل
-    await auth.restore();
+    // 1) الشركة الأول (بتضبط ApiConfig.baseUrl قبل أي request)
+    final company = await CompanyStore.restore();
     if (!mounted) return;
 
-    // 👈 من غير await: ما نعطّلش الـ splash. بتتجاهل نفسها لو مفيش login.
-    auth.syncFcmToken();
+    Widget next;
+    if (company == null) {
+      // أول مرة: اطلب كود الشركة
+      next = const CompanyCodeScreen();
+    } else {
+      // اسأل الـ Hub في الخلفية (من غير await عشان ما نعطّلش السبلاش)
+      CompanyStore.refreshInBackground();
 
-    final savedRole = await AuthProvider.savedRole();
+      // 2) نفس اللوجيك القديم
+      await auth.restore();
+      if (!mounted) return;
+      auth.syncFcmToken();
+
+      final savedRole = await AuthProvider.savedRole();
+      if (!mounted) return;
+
+      final role = userRoleFromString(savedRole);
+      next = role != null ? MainShell(role: role) : const LoginScreen();
+    }
+    await UpdateChecker.check(context);
     if (!mounted) return;
-
-    final role = userRoleFromString(savedRole);
-    final Widget next = role != null
-        ? MainShell(role: role)
-        : const LoginScreen();
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (_, _, _) => next,
-        transitionsBuilder: (_, animation, _, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
         transitionDuration: const Duration(milliseconds: 500),
       ),
     );
@@ -228,12 +241,12 @@ class _SplashScreenState extends State<SplashScreen>
                       const TextSpan(
                         children: [
                           TextSpan(
-                            text: 'closer',
+                            text: 'Closer',
                             style: TextStyle(color: Colors.white),
                           ),
                           TextSpan(
-                            text: 'crm',
-                            style: TextStyle(color: AppColors.gold),
+                            text: ' CRM',
+                            style: TextStyle(color: AppColors.goldLight),
                           ),
                         ],
                       ),

@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use, unused_element_parameter
+// ignore_for_file: deprecated_member_use, unused_element_parameter, deprecated_member_use_from_same_package
 
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
@@ -373,7 +373,7 @@ class _Header extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.navy,
+                          color: AppColors.background,
                         ),
                       ),
                     ),

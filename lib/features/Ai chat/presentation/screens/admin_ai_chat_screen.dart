@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
-import 'package:flutter_application_1/features/chat/provider/chat_provider.dart';
-import 'package:flutter_application_1/features/chat/provider/chat_service.dart';
+import 'package:flutter_application_1/features/Ai%20chat/provider/chat_provider.dart';
+import 'package:flutter_application_1/features/Ai%20chat/provider/chat_service.dart';
 import 'package:provider/provider.dart';
 
 // ─────────────────────────────────────────────

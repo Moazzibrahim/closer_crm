@@ -1,9 +1,18 @@
-// lib/core/widgets/closer_logo.dart
-// لوجو closercrm: حرف C دهبي مفتوح + نقطة بتقرّب من الفتحة (= "closer" / قفل الصفقة)
+// lib/features/splash/closer_logo.dart
+// لوجو Closer CRM: خلفية كحلي gradient + حرف C تيل gradient + نقطة برتقالي
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 
-/// الأيقونة لوحدها (للـ Header / Splash / Login)
+// ألوان اللوجو من الدوكيومنت
+const _logoBgA = Color(0xFF0E3D58);
+const _logoBgB = Color(0xFF061D2D);
+const _logoCA = Color(0xFF31D8C8);
+const _logoCB = Color(0xFF0590AB);
+const _logoDot = Color(0xFFFF7A59);
+
+/// الأيقونة لوحدها (Header / Splash / Login)
 class CloserMark extends StatelessWidget {
   final double size;
   const CloserMark({super.key, this.size = 48});
@@ -16,22 +25,20 @@ class CloserMark extends StatelessWidget {
   );
 }
 
-/// الأيقونة + اسم التطبيق (closer أبيض/كحلي + crm دهبي)
-// في الـ widget اللي فيه النص (غالبًا CloserLogo): ضيف parameter للخلفية
+/// الأيقونة + الاسم: Closer (أبيض/غامق حسب الخلفية) + CRM (لون خفيف)
 class CloserLogo extends StatelessWidget {
   final double size;
   final bool wordmark;
-  final Color background; // 👈 لون الخلفية اللي اللوجو فوقها
+  final Color background; // لون الخلفية اللي اللوجو فوقها
   const CloserLogo({
     super.key,
     this.size = 48,
     this.wordmark = true,
-    this.background = Colors.white, // الافتراضي: خلفية بيضا
+    this.background = Colors.white,
   });
 
   @override
   Widget build(BuildContext context) {
-    // خلفية غامقة = closer أبيض، خلفية فاتحة = closer أسود
     final onDark =
         ThemeData.estimateBrightnessForColor(background) == Brightness.dark;
 
@@ -45,21 +52,25 @@ class CloserLogo extends StatelessWidget {
             TextSpan(
               children: [
                 TextSpan(
-                  text: 'closer',
+                  text: 'Closer',
                   style: TextStyle(
-                    color: onDark ? Colors.white : AppColors.navy,
+                    color: onDark ? Colors.white : AppColors.textPrimary,
                   ),
                 ),
-                const TextSpan(
-                  text: 'crm',
-                  style: TextStyle(color: AppColors.gold),
+                TextSpan(
+                  text: ' CRM',
+                  // CRM بلون أهدى، زي اللوجو في الـ PDF
+                  style: TextStyle(
+                    color: onDark ? Colors.white60 : AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
             style: TextStyle(
               fontSize: size * 0.46,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.3,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -75,48 +86,45 @@ class _MarkPainter extends CustomPainter {
     const box = Rect.fromLTWH(0, 0, 100, 100);
     final rrect = RRect.fromRectAndRadius(box, const Radius.circular(24));
 
-    // الخلفية
+    // الخلفية: gradient كحلي
     canvas.drawRRect(
       rrect,
       Paint()
         ..shader = const LinearGradient(
-          colors: [AppColors.navy, AppColors.navyLight],
+          colors: [_logoBgA, _logoBgB],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ).createShader(box),
     );
+    // حد خفيف
     canvas.drawRRect(
       rrect.deflate(0.75),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
-        ..color = AppColors.gold.withOpacity(0.5),
+        ..color = Colors.white.withOpacity(0.10),
     );
 
-    // حرف C (قوس 280° والفتحة ناحية اليمين)
+    // حرف C: قوس 280° والفتحة ناحية اليمين، بـ gradient تيل
+    final arcRect = Rect.fromCircle(center: const Offset(48, 50), radius: 24);
     canvas.drawArc(
-      Rect.fromCircle(center: const Offset(48, 50), radius: 24),
+      arcRect,
       0.698, // 40°
       4.887, // 280°
       false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 9
+        ..strokeWidth = 10
         ..strokeCap = StrokeCap.round
-        ..color = AppColors.gold,
+        ..shader = const LinearGradient(
+          colors: [_logoCA, _logoCB],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ).createShader(arcRect),
     );
 
-    // النقطة اللي بتقفل الفتحة
-    canvas.drawCircle(
-      const Offset(76, 50),
-      9,
-      Paint()..color = AppColors.gold.withOpacity(0.18),
-    );
-    canvas.drawCircle(
-      const Offset(76, 50),
-      5,
-      Paint()..color = AppColors.goldLight,
-    );
+    // النقطة البرتقاني اللي في الفتحة
+    canvas.drawCircle(const Offset(76, 50), 8, Paint()..color = _logoDot);
   }
 
   @override

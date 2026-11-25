@@ -1,4 +1,4 @@
-// ignore_for_file: unused_element_parameter, deprecated_member_use, unnecessary_underscores
+// ignore_for_file: unused_element_parameter, deprecated_member_use, unnecessary_underscores, deprecated_member_use_from_same_package
 
 // lead action sheet
 import 'dart:io';
@@ -155,6 +155,7 @@ Future<StageChange?> showChangeStageSheet(
   required List<StageOpt> stages,
   String? currentStageId, // بس لو lead واحد متحدد
   List<({String id, String name})> projects = const [], // لـ Done Deal
+  bool dealOnly = false, // 👈 جديد: يعرض Done Deal stages بس ويختارها تلقائي
 }) {
   return _showSheet<StageChange>(
     context,
@@ -163,6 +164,7 @@ Future<StageChange?> showChangeStageSheet(
       stages: stages,
       currentStageId: currentStageId,
       projects: projects,
+      // dealOnly: dealOnly, // 👈
     ),
   );
 }
@@ -1315,126 +1317,140 @@ class _AssignSheetState extends State<_AssignSheet> {
           ),
           const SizedBox(height: 12),
         ],
-        Flexible(
+        // ارتفاع الصف ≈ 66 (12+42+12) + 8 مسافة → 4 صفوف ≈ 4*66 + 3*8 = 288
+        // لو القايمة أقل من 4 بتاخد حجمها، ولو أكتر بتسكرول جوه المساحة دي بس
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 288),
           child: list.isEmpty
               ? Padding(
                   padding: const EdgeInsets.symmetric(vertical: 28),
-                  child: Text(
-                    'No results',
-                    style: TextStyle(color: p.sub, fontSize: 13.5),
+                  child: Center(
+                    child: Text(
+                      'No results',
+                      style: TextStyle(color: p.sub, fontSize: 13.5),
+                    ),
                   ),
                 )
-              : ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: list.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, i) => _PersonRow(
-                    person: list[i],
-                    selected: _picked.contains(list[i].id),
-                    current: _initial.contains(list[i].id),
-                    onTap: () => _toggle(list[i]),
+              : Scrollbar(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const ClampingScrollPhysics(),
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) => _PersonRow(
+                      person: list[i],
+                      selected: _picked.contains(list[i].id),
+                      current: _initial.contains(list[i].id),
+                      onTap: () => _toggle(list[i]),
+                    ),
                   ),
                 ),
         ),
         // ── Admin only ──
-        if (widget.showHistoryOptions) ...[
-          const SizedBox(height: 12),
-          _SwitchTile(
-            title: 'Clear history',
-            subtitle: 'Remove the lead\'s previous activity history',
-            value: _clearHistory,
-            onChanged: (v) => setState(() => _clearHistory = v),
-          ),
-          const SizedBox(height: 8),
-          if (widget.allowResetCreationDate) ...[
-            const SizedBox(height: 8),
-            _SwitchTile(
-              title: 'Reset creation date',
-              subtitle: 'Set a new creation date for the lead',
-              value: _resetCreation,
-              onChanged: (v) => setState(() => _resetCreation = v),
-            ),
-            if (_resetCreation) ...[
-              const SizedBox(height: 8),
-              _DateTile(
-                icon: Icons.event_available_rounded,
-                text:
-                    '${_fmtDate(_creationDate)}  ${TimeOfDay.fromDateTime(_creationDate).format(context)}',
-                onTap: _pickCreationDate,
-              ),
-            ],
-          ],
-          // 7) جوه if (widget.showHistoryOptions) ...[ بعد بلوك Reset creation date
-          if (_stageOptions.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _SwitchTile(
-              title: 'Change stage with assign',
-              subtitle: 'Optional, e.g. assign as Fresh',
-              value: _changeStage,
-              onChanged: (v) => setState(() {
-                _changeStage = v;
-                _stage = v ? (_stage ?? _freshStage) : null;
-              }),
-            ),
-            if (_changeStage) ...[
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+        if (widget.showHistoryOptions)
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
                 children: [
-                  for (final s in _stageOptions)
-                    GestureDetector(
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() => _stage = s);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _stage?.id == s.id
-                              ? s.color.withOpacity(0.12)
-                              : p.tint,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: _stage?.id == s.id
-                                ? s.color
-                                : Colors.transparent,
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: s.color,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              s.name,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: p.text,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  const SizedBox(height: 12),
+                  _SwitchTile(
+                    title: 'Clear history',
+                    subtitle: 'Remove the lead\'s previous activity history',
+                    value: _clearHistory,
+                    onChanged: (v) => setState(() => _clearHistory = v),
+                  ),
+                  const SizedBox(height: 8),
+                  if (widget.allowResetCreationDate) ...[
+                    const SizedBox(height: 8),
+                    _SwitchTile(
+                      title: 'Reset creation date',
+                      subtitle: 'Set a new creation date for the lead',
+                      value: _resetCreation,
+                      onChanged: (v) => setState(() => _resetCreation = v),
                     ),
+                    if (_resetCreation) ...[
+                      const SizedBox(height: 8),
+                      _DateTile(
+                        icon: Icons.event_available_rounded,
+                        text:
+                            '${_fmtDate(_creationDate)}  ${TimeOfDay.fromDateTime(_creationDate).format(context)}',
+                        onTap: _pickCreationDate,
+                      ),
+                    ],
+                  ],
+                  if (_stageOptions.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    _SwitchTile(
+                      title: 'Change stage with assign',
+                      subtitle: 'Optional, e.g. assign as Fresh',
+                      value: _changeStage,
+                      onChanged: (v) => setState(() {
+                        _changeStage = v;
+                        _stage = v ? (_stage ?? _freshStage) : null;
+                      }),
+                    ),
+                    if (_changeStage) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final s in _stageOptions)
+                            GestureDetector(
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                setState(() => _stage = s);
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _stage?.id == s.id
+                                      ? s.color.withOpacity(0.12)
+                                      : p.tint,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: _stage?.id == s.id
+                                        ? s.color
+                                        : Colors.transparent,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: s.color,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      s.name,
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: p.text,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ],
               ),
-            ],
-          ],
-        ],
+            ),
+          ),
         const SizedBox(height: 14),
         _PrimaryButton(
           label: shown == 0
@@ -1643,11 +1659,14 @@ class _StageSheet extends StatefulWidget {
   final List<StageOpt> stages;
   final String? currentStageId;
   final List<({String id, String name})> projects;
+  final bool dealOnly; // 👈
+
   const _StageSheet({
     required this.count,
     required this.stages,
     this.currentStageId,
     this.projects = const [],
+    this.dealOnly = false, // 👈
   });
 
   @override
@@ -1666,7 +1685,22 @@ class _StageSheetState extends State<_StageSheet> {
   final _commission = TextEditingController();
   final _cashback = TextEditingController();
   final _paid = TextEditingController();
+  final _cName = TextEditingController();
+  final _cPhone = TextEditingController();
+
   DateTime? _closedAt; // اختياري (null = دلوقتي)
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.dealOnly && widget.stages.isNotEmpty) {
+      _picked = widget.stages.firstWhere(
+        (s) => s.id == widget.currentStageId,
+        orElse: () => widget.stages.first,
+      );
+    }
+  }
+
   @override
   void dispose() {
     for (final c in [
@@ -1677,6 +1711,7 @@ class _StageSheetState extends State<_StageSheet> {
       _commission,
       _cashback,
       _paid,
+      _cName, _cPhone, // 👈
     ]) {
       c.dispose();
     }
@@ -1690,7 +1725,9 @@ class _StageSheetState extends State<_StageSheet> {
       _projectId != null &&
       (_n(_price) ?? 0) > 0 &&
       _unitType.text.trim().isNotEmpty &&
-      _unitNumber.text.trim().isNotEmpty;
+      _unitNumber.text.trim().isNotEmpty &&
+      _n(_commission) != null && // 👈
+      _n(_cashback) != null; // 👈
 
   // Done Deal لازم lead واحد
   bool get _dealBlocked => _isDeal && widget.count > 1;
@@ -1712,10 +1749,13 @@ class _StageSheetState extends State<_StageSheet> {
       'unitPrice': _n(_price),
       'unitType': _unitType.text.trim(),
       'unitNumber': _unitNumber.text.trim(),
-      if (_n(_commission) != null) 'companyCommissionRatio': _n(_commission),
-      if (_n(_cashback) != null) 'cashbackRatio': _n(_cashback),
+      'companyCommissionRatio': _n(_commission), // 👈 إجباري دلوقتي
+      'cashbackRatio': _n(_cashback), // 👈
       if (_n(_paid) != null) 'amountPaid': _n(_paid),
       if (_closedAt != null) 'closedAt': _closedAt!.toUtc().toIso8601String(),
+      // 👈 الـ contact (نفس أسماء الحقول اللي بتتعرض في كارت الـ deal)
+      if (_cName.text.trim().isNotEmpty) 'contactName': _cName.text.trim(),
+      if (_cPhone.text.trim().isNotEmpty) 'contactPhone': _cPhone.text.trim(),
     };
   }
 

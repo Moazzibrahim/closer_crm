@@ -204,15 +204,16 @@ class StatTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 18, color: accentOf(context)),
-          const SizedBox(height: 4),
-          FittedBox(
-            child: Text(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: accentOf(context)),
+            const SizedBox(height: 4),
+            Text(
               value,
               style: TextStyle(
                 fontSize: 16,
@@ -220,17 +221,17 @@ class StatTile extends StatelessWidget {
                 color: valueColorOf(context),
               ),
             ),
-          ),
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 9,
-              letterSpacing: 0.4,
-              fontWeight: FontWeight.w600,
-              color: labelColorOf(context),
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontSize: 9,
+                letterSpacing: 0.4,
+                fontWeight: FontWeight.w600,
+                color: labelColorOf(context),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -252,7 +253,7 @@ class StatGrid extends StatelessWidget {
     super.key,
     required this.items,
     this.crossAxisCount = 3,
-    this.aspect = 1.25,
+    this.aspect = 1.05,
   });
 
   @override
@@ -355,72 +356,101 @@ class RowItem {
 class RowsCard extends StatelessWidget {
   final String title;
   final List<RowItem> rows;
-  const RowsCard({super.key, required this.title, required this.rows});
+
+  /// لو متحدد: القايمة بتسكرول جوه الكارت لو عدّت الارتفاع ده
+  final double? maxHeight;
+
+  const RowsCard({
+    super.key,
+    required this.title,
+    required this.rows,
+    this.maxHeight,
+  });
+
+  Widget _row(BuildContext context, RowItem r) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: r.onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            if (r.dotColor != null)
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: r.dotColor,
+                  shape: BoxShape.circle,
+                ),
+              )
+            else if (r.icon != null)
+              Icon(r.icon, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    r.title.isEmpty ? '—' : r.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: valueColorOf(context),
+                    ),
+                  ),
+                  if (r.subtitle != null)
+                    Text(
+                      r.subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: labelColorOf(context),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Text(
+              r.trailing,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: r.trailingColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final list = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [for (final r in rows) _row(context, r)],
+    );
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           CardLabel(title),
           const SizedBox(height: 8),
-          for (final r in rows)
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: r.onTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    if (r.dotColor != null)
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: r.dotColor,
-                          shape: BoxShape.circle,
-                        ),
-                      )
-                    else if (r.icon != null)
-                      Icon(r.icon, size: 18),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            r.title.isEmpty ? '—' : r.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: valueColorOf(context),
-                            ),
-                          ),
-                          if (r.subtitle != null)
-                            Text(
-                              r.subtitle!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: labelColorOf(context),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      r.trailing,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: r.trailingColor,
-                      ),
-                    ),
-                  ],
+          if (maxHeight == null)
+            list
+          else
+            // ConstrainedBox: القايمة القصيرة تاخد حجمها، والطويلة تتقفل عند maxHeight وتسكرول
+            ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxHeight!),
+              child: Scrollbar(
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: list,
                 ),
               ),
             ),
