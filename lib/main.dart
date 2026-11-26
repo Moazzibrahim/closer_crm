@@ -99,6 +99,15 @@ class _AppBackObserverState extends State<AppBackObserver>
     WidgetsBinding.instance.addObserver(this);
   }
 
+  // 👇 جديد: كل ما التطبيق يرجع من الخلفية نشوف لو عدّى يوم
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // بتتجاهل نفسها لو لسه ماعدّاش 24 ساعة، فمفيش request زيادة
+      context.read<AuthProvider>().syncFcmToken();
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -183,10 +192,13 @@ class _CRMRealEstateAppState extends State<CRMRealEstateApp> {
     _subs.add(
       messaging.onTokenRefresh.listen((newToken) {
         debugPrint('FCM TOKEN REFRESHED: $newToken');
-        _authProvider.syncFcmToken(newToken); // 👈 جديد
+        // التوكن اتغيّر فعلاً → ابعته فوراً بغض النظر عن الـ 24 ساعة
+        _authProvider.syncFcmToken(token: newToken, force: true);
       }),
     );
 
+    // 👇 جديد: عند فتح التطبيق، يبعت لو عدّى يوم أو التوكن اتغيّر وهو مقفول
+    unawaited(_authProvider.syncFcmToken());
     // التطبيق مفتوح (foreground)
     _subs.add(
       FirebaseMessaging.onMessage.listen((message) {

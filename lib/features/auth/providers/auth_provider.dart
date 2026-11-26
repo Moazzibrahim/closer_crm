@@ -100,22 +100,58 @@ class AuthProvider extends ChangeNotifier {
 
   /// بتبعت التوكن للباك لو اليوزر عامل login.
   /// نادها: بعد restore، وعلى كل onTokenRefresh.
-  Future<void> syncFcmToken([String? token]) async {
+  // ── مفاتيح مزامنة الـ FCM ──
+  static const String _kFcmLastToken = 'fcm_last_token'; // آخر توكن اتبعت للباك
+  static const String _kFcmLastSyncAt =
+      'fcm_last_sync_at'; // وقت آخر مزامنة (ms)
+  static const Duration _fcmSyncInterval = Duration(
+    hours: 24,
+  ); // الفترة بين كل مزامنة
+
+  bool _syncingFcm =
+      false; // يمنع تشغيلين بالتوازي (resume + onTokenRefresh مثلاً)
+
+  /// بتبعت التوكن للباك لو اليوزر عامل login، وبس لو:
+  ///  - force = true، أو
+  ///  - التوكن اتغيّر عن آخر واحد اتبعت، أو
+  ///  - عدّى 24 ساعة من آخر مزامنة.
+  /// نادها: عند فتح التطبيق، وعند الـ resume، وعلى كل onTokenRefresh.
+  Future<void> syncFcmToken({String? token, bool force = false}) async {
+    if (_syncingFcm) return;
+    _syncingFcm = true;
     try {
       final prefs = await SharedPreferences.getInstance();
       final jwt = prefs.getString(ApiConfig.tokenKey);
       if (jwt == null || jwt.isEmpty) return; // مش عامل login
 
       final t = token ?? await _getFcmToken();
-      if (t == null || t == _lastSentFcmToken) return;
+      if (t == null || t.isEmpty) return;
+
+      final lastToken = prefs.getString(_kFcmLastToken);
+      final lastAt = prefs.getInt(_kFcmLastSyncAt) ?? 0;
+      final age = DateTime.now().millisecondsSinceEpoch - lastAt;
+      final due = age >= _fcmSyncInterval.inMilliseconds;
+
+      // لا اتغيّر ولا عدّى يوم → مفيش داعي نكلم الباك
+      if (!force && t == lastToken && !due) return;
 
       final deviceId = await DeviceHelper.getDeviceId();
       await _auth.updateFcmToken(fcmToken: t, deviceId: deviceId);
+
       _lastSentFcmToken = t;
+      await _markFcmSynced(prefs, t); // نحفظ إنها نجحت
       debugPrint('FCM token synced');
     } catch (e) {
-      debugPrint('syncFcmToken failed: $e'); // هيتعاد في الفتحة الجاية
+      // مش بنحفظ الوقت هنا، فهيتعاد المحاولة في الـ resume الجاي
+      debugPrint('syncFcmToken failed: $e');
+    } finally {
+      _syncingFcm = false;
     }
+  }
+
+  Future<void> _markFcmSynced(SharedPreferences prefs, String token) async {
+    await prefs.setString(_kFcmLastToken, token);
+    await prefs.setInt(_kFcmLastSyncAt, DateTime.now().millisecondsSinceEpoch);
   }
 
   Future<bool> login({required String email, required String password}) async {
@@ -134,8 +170,12 @@ class AuthProvider extends ChangeNotifier {
         platform: DeviceHelper.platform,
         fcmToken: fcmToken, // 👈 جديد
       );
-      _lastSentFcmToken = fcmToken; // 👈 ضيف السطر ده
-
+      _lastSentFcmToken = fcmToken;
+      // 👇 جديد: اللوجين بعت التوكن فعلاً، فنسجّل الوقت عشان ما نبعتهوش تاني فوراً
+      if (fcmToken != null) {
+        final p = await SharedPreferences.getInstance();
+        await _markFcmSynced(p, fcmToken);
+      }
       user = _findUser(data!); // 👈
       final prefs = await SharedPreferences.getInstance();
       final r = role;
@@ -189,6 +229,10 @@ class AuthProvider extends ChangeNotifier {
     await prefs.remove(ApiConfig.tokenKey);
     await prefs.remove(_roleKey);
     await prefs.remove(_userKey);
+    await prefs.remove(
+      _kFcmLastToken,
+    ); // 👈 جديد: اللوجين الجاي لازم يبعت من الأول
+    await prefs.remove(_kFcmLastSyncAt);
     _lastSentFcmToken = null;
 
     user = null;

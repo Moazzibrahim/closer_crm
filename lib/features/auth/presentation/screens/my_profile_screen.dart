@@ -63,8 +63,8 @@ class MyProfileScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: dark
-                        ? [const Color(0xFF1A1F2E), AppColors.navy]
-                        : [AppColors.navy, AppColors.navyLight],
+                        ? [const Color(0xFF1A1F2E), const Color(0xFF1A1F2E)]
+                        : [const Color(0xFF1A1F2E), const Color(0xFF1A1F2E)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
