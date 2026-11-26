@@ -1,6 +1,6 @@
 // lib/features/sales/presentation/screens/sales_dashboard_screen.dart
 // نفس ديزاين داشبورد الأدمن، من غير فلتر السيلز (الداتا دايماً بتاعة اليوزر الحالي).
-// ignore_for_file: unnecessary_underscores, deprecated_member_use
+// ignore_for_file: unnecessary_underscores, deprecated_member_use, deprecated_member_use_from_same_package
 
 import 'dart:math' as math;
 
@@ -509,7 +509,10 @@ class _HeroCard extends StatelessWidget {
         children: [
           InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: () => _openFollowUpLeads(context), // كل ليدز اليوزر/الفريق
+            onTap: () => _openFollowUpLeads(
+              context,
+              withRange: true,
+            ), // كل ليدز اليوزر/الفريق
             child: Row(
               children: [
                 Container(
@@ -567,7 +570,8 @@ class _HeroCard extends StatelessWidget {
                   icon: Icons.schedule_rounded,
                   label: 'Late',
                   value: late,
-                  onTap: () => _openFollowUpLeads(context, late: true),
+                  onTap: () =>
+                      _openFollowUpLeads(context, late: true, withRange: true),
                 ),
               ),
             ],
@@ -726,8 +730,11 @@ void _openFollowUpLeads(
   String? from,
   String? to,
   String? stale,
+  bool withRange = false,
 }) {
   final p = context.read<SalesDashboardProvider>();
+  final r = withRange ? p.range : null;
+
   context.read<ShellProvider>().openLeads(
     LeadsFilters(
       lateFollowUp: late,
@@ -735,6 +742,8 @@ void _openFollowUpLeads(
       followUpTo: to,
       stale: stale,
       sales: p.isTeam ? const [] : [p.salesId],
+      createdFrom: r == null ? null : _ymd(r.start),
+      createdTo: r == null ? null : _ymd(r.end),
     ),
     builder: (preset) => _leadsFor(p, preset),
   );
@@ -1048,7 +1057,7 @@ void _openMemberLeads(
     LeadsFilters(
       sales: [memberId],
       lateFollowUp: late,
-      noStage: fresh,
+      fresh: fresh,
       followUpFrom: today ? start.toUtc().toIso8601String() : null,
       followUpTo: today ? end.toUtc().toIso8601String() : null,
     ),

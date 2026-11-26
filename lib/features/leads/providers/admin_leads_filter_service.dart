@@ -41,7 +41,7 @@ class LeadsFilters {
   bool lateFollowUp;
   String? followUpFrom, followUpTo;
   String? stale; // noComment | untouched | unassignedOld
-
+  bool fresh; // 👈 clean lead: no stage + no comments (نفس fresh في الداشبورد)
   LeadsFilters({
     this.keyword = '',
     this.phone,
@@ -70,6 +70,7 @@ class LeadsFilters {
     this.toDistribute = false,
     this.linkedDeals = false,
     this.noStage = false, // 👈
+    this.fresh = false, // 👈
     this.budgetMin,
     this.budgetMax,
     this.createdFrom,
@@ -142,6 +143,7 @@ class LeadsFilters {
     followUpTo: followUpTo,
     stale: stale,
     noStage: noStage, // 👈
+    fresh: fresh, // 👈
   );
 
   void clearFollowUp() {
@@ -155,6 +157,7 @@ class LeadsFilters {
   void copyAdvancedFrom(LeadsFilters o) {
     stages = o.stages; // 👈
     noStage = o.stages.isEmpty ? o.noStage : false; // 👈 Reset بيرجّعها false
+    fresh = o.stages.isEmpty ? o.fresh : false; // 👈
     phone = o.phone;
     leadType = o.leadType;
     oldStages = o.oldStages;
@@ -306,6 +309,7 @@ class LeadsFilters {
     // ── follow-up / stale ──
     if (lateFollowUp) q['lateFollowUp'] = 'true';
     if (noStage) q['noStage'] = 'true'; // 👈
+    if (fresh) q['fresh'] = 'true'; // 👈
     put('followUpFrom', followUpFrom);
     put('followUpTo', followUpTo);
     put('stale', stale);

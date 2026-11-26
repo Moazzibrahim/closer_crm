@@ -212,6 +212,7 @@ class LeadsScreenState extends State<LeadsScreen> {
     _c.apply((f) {
       f.stages = _stageIds.toList();
       f.noStage = false; // 👈
+      f.fresh = false; // 👈
     });
   }
 
@@ -284,7 +285,9 @@ class LeadsScreenState extends State<LeadsScreen> {
 
   Future<void> _selectAll() async {
     if (_selectingAll) return;
-    debugPrint('items=${_c.items.length} total=${_c.totalItems} hasMore=${_c.hasMore}');
+    debugPrint(
+      'items=${_c.items.length} total=${_c.totalItems} hasMore=${_c.hasMore}',
+    );
 
     // الكل متحدد → امسح
     if (_c.totalItems > 0 && _selected.length >= _c.totalItems) {
@@ -708,7 +711,8 @@ class LeadsScreenState extends State<LeadsScreen> {
                                     // All مختارة لما مفيش stages متحددة
                                     selected: id == null
                                         ? _stageIds.isEmpty &&
-                                              !_c.filters.noStage
+                                              !_c.filters.noStage &&
+                                              !_c.filters.fresh
                                         : _stageIds.contains(id),
                                     dark: dark,
                                     onTap: () => _toggleStage(id),

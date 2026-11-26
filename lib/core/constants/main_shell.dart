@@ -317,6 +317,7 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      SystemNavigator.setFrameworkHandlesBack(true); // 👈
       final crm = context.read<CrmSettingsProvider>();
       if (!crm.isLoaded && !crm.isLoading) crm.load();
     });
@@ -406,56 +407,53 @@ class _ShellView extends StatelessWidget {
     return PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
-        debugPrint('BACK PRESSED - didPop: $didPop');
-        if (didPop || !context.mounted) return;
+        if (didPop) return;
 
+        final shell = context.read<ShellProvider>();
         final nav = shell.navKeys[shell.index].currentState;
 
-        // لو فيه صفحة داخلية ارجع منها
-        if (nav != null && nav.canPop()) {
-          await nav.maybePop();
-          return;
-        }
+        // maybePop بترجّع true لو اتعمل pop أو لو PopScope جوه الصفحة مسكته (زي إلغاء الـ selection)
+        if (nav != null && await nav.maybePop()) return;
+        if (!context.mounted) return;
 
-        // لو مش في Dashboard ارجع للتاب الأول
-        if (shell.index != 0) {
-          shell.setIndex(0);
-          return;
-        }
-
-        // تجاهل زرار Back تماماً
+        // مش في الداشبورد → ارجع للتاب الأول، وفي الداشبورد تجاهل الـ back
+        if (shell.index != 0) shell.setIndex(0);
       },
-      child: Scaffold(
-        // ضع هنا باقي كود Scaffold الحالي كما هو
+      child: NotificationListener<NavigationNotification>(
+        onNotification: (_) => true,
 
-        // IndexedStack + lazy: التاب ما يتبنيش إلا لما تفتحه أول مرة
-        body: Stack(
-          children: [
-            IndexedStack(
-              index: shell.index,
-              children: [
-                for (int i = 0; i < config.tabs.length; i++)
-                  shell.isVisited(i)
-                      ? Navigator(
-                          key: shell.navKeys[i],
-                          onGenerateRoute: (_) => MaterialPageRoute(
-                            builder:
-                                shell.takePending(i) ?? config.tabs[i].root,
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-              ],
-            ),
-            //    if (role != UserRole.marketer)
-            const Positioned(left: 16, bottom: 55, child: MessagingFab()),
-          ],
-        ),
-        bottomNavigationBar: _FloatingNavBar(
-          tabs: config.tabs,
-          currentIndex: shell.index,
-          onTap: shell.setIndex,
-          showAdd: config.canAddLead,
-          onAdd: () => _addLead(context, shell),
+        child: Scaffold(
+          // ضع هنا باقي كود Scaffold الحالي كما هو
+
+          // IndexedStack + lazy: التاب ما يتبنيش إلا لما تفتحه أول مرة
+          body: Stack(
+            children: [
+              IndexedStack(
+                index: shell.index,
+                children: [
+                  for (int i = 0; i < config.tabs.length; i++)
+                    shell.isVisited(i)
+                        ? Navigator(
+                            key: shell.navKeys[i],
+                            onGenerateRoute: (_) => MaterialPageRoute(
+                              builder:
+                                  shell.takePending(i) ?? config.tabs[i].root,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                ],
+              ),
+              //    if (role != UserRole.marketer)
+              const Positioned(left: 16, bottom: 55, child: MessagingFab()),
+            ],
+          ),
+          bottomNavigationBar: _FloatingNavBar(
+            tabs: config.tabs,
+            currentIndex: shell.index,
+            onTap: shell.setIndex,
+            showAdd: config.canAddLead,
+            onAdd: () => _addLead(context, shell),
+          ),
         ),
       ),
     );

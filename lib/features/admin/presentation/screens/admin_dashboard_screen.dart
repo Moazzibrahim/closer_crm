@@ -351,11 +351,15 @@ class _HeroCard extends StatelessWidget {
             : '${f.count} · ${f.percent.toStringAsFixed(1)}%',
         gold: true,
         onTap: () {
-          final salesId = context.read<DashboardProvider>().sales?.id;
+          final dash = context.read<DashboardProvider>();
+          final salesId = dash.sales?.id;
+          final range = dash.range;
           context.read<ShellProvider>().openLeads(
             LeadsFilters(
-              noStage: true,
+              fresh: true, // 👈 بدل noStage
               sales: salesId == null ? null : [salesId],
+              createdFrom: range == null ? null : ymd(range.start),
+              createdTo: range == null ? null : ymd(range.end),
             ),
           );
         },
@@ -380,7 +384,7 @@ class _HeroCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           InkWell(
-            onTap: () => _openFollowUpLeads(context),
+            onTap: () => _openFollowUpLeads(context, withRange: true),
             child: Row(
               children: [
                 Container(
@@ -433,7 +437,8 @@ class _HeroCard extends StatelessWidget {
                   icon: Icons.schedule_rounded,
                   label: 'Late',
                   value: late,
-                  onTap: () => _openFollowUpLeads(context, late: true),
+                  onTap: () =>
+                      _openFollowUpLeads(context, late: true, withRange: true),
                 ),
               ),
             ],
@@ -725,8 +730,11 @@ void _openFollowUpLeads(
   String? from, // ISO من الـ API
   String? to,
   String? stale,
+  bool withRange = false, // 👈
 }) {
-  final salesId = context.read<DashboardProvider>().sales?.id;
+  final dash = context.read<DashboardProvider>();
+  final salesId = dash.sales?.id;
+  final range = withRange ? dash.range : null;
   context.read<ShellProvider>().openLeads(
     LeadsFilters(
       lateFollowUp: late,
@@ -734,6 +742,8 @@ void _openFollowUpLeads(
       followUpTo: to,
       stale: stale,
       sales: salesId == null ? null : [salesId],
+      createdFrom: range == null ? null : ymd(range.start),
+      createdTo: range == null ? null : ymd(range.end),
     ),
   );
 }

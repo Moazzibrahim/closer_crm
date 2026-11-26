@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, deprecated_member_use_from_same_package
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/features/leads/presentation/screens/lead_details_screen_master.dart';
@@ -296,7 +296,7 @@ class _NotificationsViewState extends State<_NotificationsView> {
                         child: Text(
                           '${p.mineUnread} new',
                           style: const TextStyle(
-                            color: AppColors.navy,
+                            color: AppColors.bg,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
@@ -341,9 +341,7 @@ class _NotificationsViewState extends State<_NotificationsView> {
                           child: Text(
                             _filters[i],
                             style: TextStyle(
-                              color: selected
-                                  ? AppColors.navy
-                                  : AppColors.white,
+                              color: AppColors.bg,
                               fontWeight: FontWeight.w600,
                               fontSize: 13,
                             ),
