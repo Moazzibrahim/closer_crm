@@ -9,7 +9,6 @@ import 'package:flutter_application_1/app/theme/app_colors.dart';
 import 'package:flutter_application_1/core/constants/main_shell.dart';
 import 'package:flutter_application_1/core/widgets/dashboard_widget.dart';
 import 'package:flutter_application_1/features/admin/presentation/screens/deals_list_screen.dart';
-import 'package:flutter_application_1/features/admin/providers/dashboard_provider.dart';
 import 'package:flutter_application_1/features/auth/providers/auth_provider.dart';
 import 'package:flutter_application_1/features/leads/presentation/screens/lead_details_screen_master.dart';
 import 'package:flutter_application_1/features/leads/providers/admin_leads_filter_service.dart';

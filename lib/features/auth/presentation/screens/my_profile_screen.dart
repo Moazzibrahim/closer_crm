@@ -380,28 +380,28 @@ class _Avatar extends StatelessWidget {
           ),
         ),
         // زرار تعديل الصورة
-        Positioned(
-          right: 2,
-          bottom: 2,
-          child: InkWell(
-            onTap: onEdit,
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: AppColors.gold,
-                shape: BoxShape.circle,
-                border: Border.all(color: ringColor, width: 2.5),
-              ),
-              child: const Icon(
-                Icons.camera_alt_rounded,
-                size: 16,
-                color: AppColors.navy,
-              ),
-            ),
-          ),
-        ),
+        // Positioned(
+        //   right: 2,
+        //   bottom: 2,
+        //   child: InkWell(
+        //     onTap: onEdit,
+        //     borderRadius: BorderRadius.circular(20),
+        //     child: Container(
+        //       width: 34,
+        //       height: 34,
+        //       decoration: BoxDecoration(
+        //         color: AppColors.gold,
+        //         shape: BoxShape.circle,
+        //         border: Border.all(color: ringColor, width: 2.5),
+        //       ),
+        //       child: const Icon(
+        //         Icons.camera_alt_rounded,
+        //         size: 16,
+        //         color: AppColors.navy,
+        //       ),
+        //     ),
+        //   ),
+        // ),
       ],
     );
   }

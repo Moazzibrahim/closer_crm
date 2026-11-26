@@ -35,8 +35,9 @@ class UpdateChecker {
         RemoteConfigSettings(
           fetchTimeout: const Duration(seconds: 5),
           // 0 in debug so you can test instantly; 15 min in release
-          minimumFetchInterval:
-              kDebugMode ? Duration.zero : const Duration(minutes: 15),
+          minimumFetchInterval: kDebugMode
+              ? Duration.zero
+              : const Duration(minutes: 15),
         ),
       );
 
@@ -110,7 +111,9 @@ class UpdateChecker {
       builder: (ctx) => PopScope(
         canPop: !force, // blocks the Android back button on force update
         child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
           title: Text(force ? 'Update Required' : 'Update Available'),
           content: Text(message),
           actions: [
@@ -126,6 +129,9 @@ class UpdateChecker {
                     Uri.parse(url),
                     mode: LaunchMode.externalApplication,
                   );
+                }
+                if (!force && ctx.mounted) {
+                  Navigator.of(ctx).pop(); // 👈 للاختياري بس
                 }
                 // Force: dialog stays open so they can't skip it
               },
